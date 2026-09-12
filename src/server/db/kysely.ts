@@ -9,10 +9,16 @@ const globalDbRef = globalThis as typeof globalThis & {
 };
 
 export const SUPABASE_DATABASE_URL =
-  "postgresql://postgres:a6MbMsdpOgxTnCIW@db.zvcebipompkisahakzpw.supabase.co:5432/postgres";
+  "postgresql://postgres.zvcebipompkisahakzpw:a6MbMsdpOgxTnCIW@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres";
 
 export function getDb(): Kysely<Database> {
-  const databaseUrl = process.env.DATABASE_URL?.trim() || SUPABASE_DATABASE_URL;
+  let databaseUrl = process.env.DATABASE_URL?.trim() || SUPABASE_DATABASE_URL;
+  if (databaseUrl.includes("db.zvcebipompkisahakzpw.supabase.co")) {
+    databaseUrl = databaseUrl
+      .replace("db.zvcebipompkisahakzpw.supabase.co:5432", "aws-0-ap-southeast-2.pooler.supabase.com:5432")
+      .replace("://postgres:", "://postgres.zvcebipompkisahakzpw:");
+  }
+
 
   if (!globalDbRef.__kyselyDbInstance__) {
     if (databaseUrl) {

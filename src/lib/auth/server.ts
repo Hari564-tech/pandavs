@@ -91,10 +91,22 @@ export const authConfigured =
 // it derives the origin per-request from the (proxied) host, validated against the
 // preview allowlist, which makes the OAuth `redirect_uri` the concrete preview URL
 // the broker's preview client accepts.
-const explicitBaseURL = env("BETTER_AUTH_URL");
+const renderExternalUrl = env("RENDER_EXTERNAL_URL");
+const renderExternalHost = env("RENDER_EXTERNAL_HOSTNAME");
+
+const explicitBaseURL =
+  env("BETTER_AUTH_URL") ||
+  renderExternalUrl ||
+  (renderExternalHost ? `https://${renderExternalHost}` : undefined);
+
 // Explicit `string[]` (not a readonly tuple) — Better Auth's DynamicBaseURLConfig
 // requires a mutable `allowedHosts: string[]`.
-const previewAllowedHosts: string[] = [...PREVIEW_ALLOWED_HOSTS];
+const previewAllowedHosts: string[] = [
+  ...PREVIEW_ALLOWED_HOSTS,
+  "*.onrender.com",
+  "*.vercel.app",
+  ...(renderExternalHost ? [renderExternalHost] : []),
+];
 // Local `npm run dev` (port 8080 contract). Browsers may send Origin as any of
 // these for the same server — trusting only `localhost` rejects `127.0.0.1` and
 // breaks email/password with "Invalid origin".
@@ -102,6 +114,10 @@ const LOCAL_DEV_ORIGINS: string[] = [
   "http://localhost:8080",
   "http://127.0.0.1:8080",
   "http://[::1]:8080",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "http://localhost:10000",
+  "http://127.0.0.1:10000",
 ];
 const baseURL = explicitBaseURL ?? {
   // Include loopback hosts so dynamic baseURL resolves for local email/password
@@ -110,24 +126,34 @@ const baseURL = explicitBaseURL ?? {
   // `auto` → trust both http:// and https:// expansions of allowedHosts
   // (preview is https; local dev is http).
   protocol: "auto" as const,
-  fallback: "http://localhost:8080",
+  fallback: renderExternalUrl || "https://pandavs-1.onrender.com",
 };
 
 // Origins Better Auth accepts on credentialed POSTs (sign-up/sign-in, etc.).
 // Missing entries here surface as FORBIDDEN "Invalid origin".
-const trustedOrigins: string[] = explicitBaseURL
-  ? [explicitBaseURL, ...LOCAL_DEV_ORIGINS]
-  : [
-      // Host wildcards (matched against Origin's host)
-      ...previewAllowedHosts,
-      // Full-origin wildcards (matched against Origin)
-      ...previewAllowedHosts.flatMap((host) => [`https://${host}`, `http://${host}`]),
-      ...LOCAL_DEV_ORIGINS,
-    ];
+const trustedOrigins: string[] = Array.from(
+  new Set([
+    ...(explicitBaseURL ? [explicitBaseURL] : []),
+    ...(renderExternalUrl ? [renderExternalUrl] : []),
+    ...(renderExternalHost ? [`https://${renderExternalHost}`, `http://${renderExternalHost}`] : []),
+    "https://pandavs-1.onrender.com",
+    "http://pandavs-1.onrender.com",
+    ...previewAllowedHosts,
+    ...previewAllowedHosts.flatMap((host) => [`https://${host}`, `http://${host}`]),
+    ...LOCAL_DEV_ORIGINS,
+  ]),
+);
 
-const databaseUrl =
-  env("DATABASE_URL") ??
-  "postgresql://postgres:a6MbMsdpOgxTnCIW@db.zvcebipompkisahakzpw.supabase.co:5432/postgres";
+let rawDbUrl =
+  env("DATABASE_URL") ||
+  "postgresql://postgres.zvcebipompkisahakzpw:a6MbMsdpOgxTnCIW@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres";
+if (rawDbUrl.includes("db.zvcebipompkisahakzpw.supabase.co")) {
+  rawDbUrl = rawDbUrl
+    .replace("db.zvcebipompkisahakzpw.supabase.co:5432", "aws-0-ap-southeast-2.pooler.supabase.com:5432")
+    .replace("://postgres:", "://postgres.zvcebipompkisahakzpw:");
+}
+const databaseUrl = rawDbUrl;
+
 
 // Static broker OAuth endpoints (skip OIDC discovery on every sign-in / callback).
 // Discovery would cost an extra network hop to the broker before the popup can
@@ -189,9 +215,10 @@ const grokOAuthPlugin = authConfigured
 
 export const auth = betterAuth({
   baseURL,
-  // Deployed apps inject BETTER_AUTH_SECRET. Preview: process-stable secret on
-  // globalThis so HMR doesn't invalidate PGLite-backed sessions (see above).
-  secret: env("BETTER_AUTH_SECRET") ?? previewAuthSecret(),
+  secret:
+    env("BETTER_AUTH_SECRET") ||
+    previewAuthSecret() ||
+    "rvit_teamhub_auth_secret_render_production_secure_key_2026",
   database,
 
   // CSRF / origin check for credentialed auth POSTs (email sign-up/sign-in, …).

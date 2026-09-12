@@ -6,12 +6,17 @@ export type DbSource = "neon" | "pglite";
 // An empty/whitespace DATABASE_URL (an easy misconfig in deploy UIs) must mean
 // "unset" — otherwise production would silently run on the PGLite fallback.
 export const SUPABASE_DATABASE_URL =
-  "postgresql://postgres:a6MbMsdpOgxTnCIW@db.zvcebipompkisahakzpw.supabase.co:5432/postgres";
+  "postgresql://postgres.zvcebipompkisahakzpw:a6MbMsdpOgxTnCIW@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres";
 
-const rawDatabaseUrl =
+let rawDatabaseUrl =
   typeof process !== "undefined"
     ? process.env.DATABASE_URL?.trim() || SUPABASE_DATABASE_URL
     : undefined;
+if (rawDatabaseUrl && rawDatabaseUrl.includes("db.zvcebipompkisahakzpw.supabase.co")) {
+  rawDatabaseUrl = rawDatabaseUrl
+    .replace("db.zvcebipompkisahakzpw.supabase.co:5432", "aws-0-ap-southeast-2.pooler.supabase.com:5432")
+    .replace("://postgres:", "://postgres.zvcebipompkisahakzpw:");
+}
 const databaseUrl =
   rawDatabaseUrl && rawDatabaseUrl.trim() ? rawDatabaseUrl : undefined;
 

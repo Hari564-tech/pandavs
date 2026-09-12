@@ -14,11 +14,13 @@ const ALLOWED_MIME_TYPES = new Set([
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
+const DEFAULT_SUPABASE_URL = "https://zvcebipompkisahakzpw.supabase.co";
 const DEFAULT_SUPABASE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.SUPABASE_KEY ||
   process.env.SUPABASE_ANON_KEY ||
   "";
+
 
 export const StorageService = {
   validateFile(mimeType: string, sizeBytes: number) {

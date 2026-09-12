@@ -18,9 +18,15 @@ import { dirname, join } from "node:path";
 import pg from "pg";
 import { pendingMigrations } from "./migration-plan.mjs";
 
-const databaseUrl =
+let rawDbUrl =
   process.env.DATABASE_URL ||
-  "postgresql://postgres:a6MbMsdpOgxTnCIW@db.zvcebipompkisahakzpw.supabase.co:5432/postgres";
+  "postgresql://postgres.zvcebipompkisahakzpw:a6MbMsdpOgxTnCIW@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres";
+if (rawDbUrl && rawDbUrl.includes("db.zvcebipompkisahakzpw.supabase.co")) {
+  rawDbUrl = rawDbUrl
+    .replace("db.zvcebipompkisahakzpw.supabase.co:5432", "aws-0-ap-southeast-2.pooler.supabase.com:5432")
+    .replace("://postgres:", "://postgres.zvcebipompkisahakzpw:");
+}
+const databaseUrl = rawDbUrl;
 if (!databaseUrl) {
   console.log(
     "[migrate] DATABASE_URL not set — skipping (the PGLite fallback migrates itself).",
@@ -44,7 +50,12 @@ async function main() {
     return;
   }
 
-  const pool = new pg.Pool({ connectionString: databaseUrl, max: 1 });
+  const isLocal = databaseUrl.includes("localhost") || databaseUrl.includes("127.0.0.1");
+  const pool = new pg.Pool({
+    connectionString: databaseUrl,
+    max: 1,
+    ssl: isLocal ? undefined : { rejectUnauthorized: false },
+  });
   const client = await pool.connect();
   try {
     await client.query(
