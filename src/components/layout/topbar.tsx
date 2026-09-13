@@ -1,5 +1,5 @@
 import { Bell, Menu, Moon, Plus, Search, Sun, Upload, User, LogOut, Edit } from "lucide-react";
-import { useRouterState } from "@tanstack/react-router";
+import { useRouterState, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -43,6 +43,7 @@ const crumbs: Record<string, string[]> = {
 };
 
 export function Topbar({ onMenu }: { onMenu: () => void }) {
+  const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const dark = useHub((s) => s.dark);
   const toggleDark = useHub((s) => s.toggleDark);
@@ -170,9 +171,12 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
                     key={n.id}
                     onClick={() => {
                       if (!n.read) markNotificationRead.mutate(n.id);
+                      if (n.href) {
+                        navigate({ to: n.href as any });
+                      }
                     }}
                     className={cn(
-                      "block w-full border-b border-border px-3 py-2.5 text-left last:border-0 hover:bg-surface-2 transition-colors",
+                      "block w-full border-b border-border px-3 py-2.5 text-left last:border-0 hover:bg-surface-2 transition-colors cursor-pointer",
                       !n.read && "bg-accent-soft/40",
                     )}
                   >

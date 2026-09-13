@@ -29,6 +29,8 @@ import {
   useReportsQuery,
   useTeamQuery,
   useDashboardAnalyticsQuery,
+  usePingMemberMutation,
+  usePingAllPendingMutation,
 } from "@/lib/api-hooks";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import type { Person } from "@/lib/types";
@@ -44,6 +46,8 @@ function CommandCenter() {
   const { data: reports = [] } = useReportsQuery();
   const { data: team = [] } = useTeamQuery();
   const { data: analytics } = useDashboardAnalyticsQuery();
+  const pingMember = usePingMemberMutation();
+  const pingAllPending = usePingAllPendingMutation();
 
   const pinged = useHub((s) => s.pinged);
   const ping = useHub((s) => s.pingMember);
@@ -124,8 +128,20 @@ function CommandCenter() {
               <DropdownMenuItem onClick={() => useHub.getState().setTaskDialog(true)}>Assign task</DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate({ to: "/reviews" })}>Review reports queue</DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => {
-                  toast.success("Batch reminders queued", { description: `Reminded ${pendingMembers.length} members pending reports.` });
+                onClick={async () => {
+                  const ids = pendingMembers.map((u) => u.user_id);
+                  if (ids.length > 0) {
+                    try {
+                      await pingAllPending.mutateAsync(ids);
+                      toast.success("Batch reminders queued", {
+                        description: `Sent notifications to ${ids.length} members pending reports.`,
+                      });
+                    } catch (err) {
+                      toast.error("Failed to send reminders");
+                    }
+                  } else {
+                    toast.info("All members have filed their reports today!");
+                  }
                 }}
               >
                 Batch reminder
@@ -295,9 +311,15 @@ function CommandCenter() {
                   <Button
                     size="sm"
                     variant={already ? "accent" : "secondary"}
-                    onClick={() => {
-                      ping(p.id);
-                      toast.success(already ? "Nudged again" : "Ping sent", { description: p.name });
+                    disabled={pingMember.isPending}
+                    onClick={async () => {
+                      try {
+                        await pingMember.mutateAsync(p.id);
+                        ping(p.id);
+                        toast.success(already ? "Nudged again" : "Reminder sent", { description: p.name });
+                      } catch (err) {
+                        toast.error("Failed to send reminder");
+                      }
                     }}
                   >
                     {already ? <Bell /> : <Send />}
@@ -310,11 +332,22 @@ function CommandCenter() {
           <Button
             className="mt-3"
             variant="secondary"
-            onClick={() => {
-              toast.success("Reminded all unfiled members");
+            disabled={pingAllPending.isPending || pendingMembers.length === 0}
+            onClick={async () => {
+              const ids = pendingMembers.map((u) => u.user_id);
+              if (ids.length > 0) {
+                try {
+                  await pingAllPending.mutateAsync(ids);
+                  toast.success(`Reminded all ${ids.length} unfiled members via in-app notification`);
+                } catch (err) {
+                  toast.error("Failed to send reminders");
+                }
+              } else {
+                toast.info("All members have filed their reports today!");
+              }
             }}
           >
-            Remind all via Notification
+            {pingAllPending.isPending ? "Sending notifications..." : "Remind all via Notification"}
           </Button>
         </Card>
       </div>

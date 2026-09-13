@@ -206,17 +206,15 @@ function ProjectDetail() {
   const miles = MILESTONES.filter((m) => m.projectId === projectId);
   const milestones = miles.length ? miles : MILESTONES.filter((m) => m.projectId === "team-portal");
 
-  const displayDocs = serverDocs.length
-    ? serverDocs.map((d) => ({
-        id: d.id,
-        name: d.name,
-        kind: d.kind,
-        version: d.version ?? "v1.0",
-        size: d.size ?? "1.2 MB",
-        updatedAt: d.updatedAt ?? "Today",
-        current: d.current ?? true,
-      }))
-    : DOCUMENTS.filter((d) => d.projectId === projectId);
+  const displayDocs = serverDocs.map((d) => ({
+    id: d.id,
+    name: d.name,
+    kind: d.kind,
+    version: d.version ?? "v1.0",
+    size: d.size ?? "1.2 MB",
+    updatedAt: d.updatedAt ?? "Today",
+    current: d.current ?? true,
+  }));
 
   return (
     <div className="flex flex-col gap-4">
@@ -398,44 +396,59 @@ function ProjectDetail() {
               <Plus className="mr-1 h-3.5 w-3.5" /> Upload Spec
             </Button>
           </div>
-          <div className="space-y-2">
-            {(displayDocs.length ? displayDocs : DOCUMENTS.slice(0, 3)).map((d) => (
-              <Card key={d.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-md bg-navy text-navy-fg">
-                    <FileText className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <div className="flex items-center gap-2 text-sm font-semibold">
-                      {d.name}
-                      {d.current ? <StatusBadge value="approved" /> : null}
-                    </div>
-                    <div className="font-mono text-[11px] text-muted">
-                      {d.version} · {d.size} · {d.updatedAt}
+          {displayDocs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-12 text-center">
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-muted">
+                <FileText className="h-6 w-6" />
+              </div>
+              <h3 className="font-display text-sm font-semibold">No documents uploaded yet</h3>
+              <p className="mt-1 max-w-sm text-xs text-muted">
+                Upload technical specifications (TRD), product briefs (PRD), or architecture packs for this project.
+              </p>
+              <Button size="sm" className="mt-4 gap-1.5" onClick={() => navigate({ to: "/documents" })}>
+                <Plus className="h-3.5 w-3.5" /> Upload Document
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {displayDocs.map((d) => (
+                <Card key={d.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-md bg-navy text-navy-fg">
+                      <FileText className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2 text-sm font-semibold">
+                        {d.name}
+                        {d.current ? <StatusBadge value="approved" /> : null}
+                        <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted">
+                          {d.kind}
+                        </span>
+                      </div>
+                      <div className="font-mono text-[11px] text-muted">
+                        {d.version} · {d.size} · {d.updatedAt}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => handleDownloadDoc(d.id, d.name)}>
-                    <ExternalLink className="mr-1 h-3.5 w-3.5" /> Open
-                  </Button>
-                  {canDeleteDocs && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                      onClick={() => setDocToDelete({ id: d.id, name: d.name })}
-                    >
-                      <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="secondary" onClick={() => handleDownloadDoc(d.id, d.name)}>
+                      <ExternalLink className="mr-1 h-3.5 w-3.5" /> Open
                     </Button>
-                  )}
-                </div>
-              </Card>
-            ))}
-            {displayDocs.length === 0 && (
-              <p className="text-sm text-muted">No documents uploaded for this project yet.</p>
-            )}
-          </div>
+                    {canDeleteDocs && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                        onClick={() => setDocToDelete({ id: d.id, name: d.name })}
+                      >
+                        <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
+                      </Button>
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
         <TabsContent value="team">
           <div className="mb-3 flex items-center justify-between">

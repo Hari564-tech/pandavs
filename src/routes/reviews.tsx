@@ -1,12 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Bell } from "lucide-react";
 import { PersonAvatar } from "@/components/person-avatar";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { COMPLIANCE_TODAY, PEOPLE } from "@/lib/seed";
-import { useReportsQuery, useReviewReportMutation, useTeamQuery } from "@/lib/api-hooks";
+import {
+  useReportsQuery,
+  useReviewReportMutation,
+  useTeamQuery,
+  usePingMemberMutation,
+  usePingAllPendingMutation,
+} from "@/lib/api-hooks";
 import type { Person } from "@/lib/types";
 
 export const Route = createFileRoute("/reviews")({ component: ReviewsPage });
@@ -15,6 +21,8 @@ function ReviewsPage() {
   const { data: reports = [], isLoading, isError, error, refetch } = useReportsQuery();
   const { data: team = [] } = useTeamQuery();
   const reviewMutation = useReviewReportMutation();
+  const pingMember = usePingMemberMutation();
+  const pingAllPending = usePingAllPendingMutation();
 
   const getPerson = (id: string): Person | undefined => {
     const fromTeam = team.find((u) => u.user_id === id);
@@ -147,7 +155,27 @@ function ReviewsPage() {
       )}
 
       <Card className="p-4">
-        <h2 className="mb-2 font-display text-sm font-semibold">Unfiled today (Automated Reminder Queue)</h2>
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h2 className="font-display text-sm font-semibold">Unfiled today (Automated Reminder Queue)</h2>
+            <p className="text-xs text-muted">Send automated notifications directly to engineers pending standups.</p>
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={pingAllPending.isPending || COMPLIANCE_TODAY.pending.length === 0}
+            onClick={async () => {
+              try {
+                await pingAllPending.mutateAsync(COMPLIANCE_TODAY.pending);
+                toast.success(`Sent reminders to all ${COMPLIANCE_TODAY.pending.length} unfiled members`);
+              } catch (err) {
+                toast.error("Failed to send reminders");
+              }
+            }}
+          >
+            {pingAllPending.isPending ? "Sending..." : "Remind All via Notification"}
+          </Button>
+        </div>
         <div className="flex flex-wrap gap-2">
           {COMPLIANCE_TODAY.pending.map((id) => {
             const p = getPerson(id) ?? PEOPLE.find((x) => x.id === id);
@@ -157,8 +185,14 @@ function ReviewsPage() {
                 key={id}
                 size="sm"
                 variant="outline"
-                onClick={() => {
-                  toast.success(`EOD reminder sent to ${p.name}`);
+                disabled={pingMember.isPending}
+                onClick={async () => {
+                  try {
+                    await pingMember.mutateAsync(id);
+                    toast.success(`EOD reminder sent to ${p.name}`);
+                  } catch (err) {
+                    toast.error(`Failed to send reminder to ${p.name}`);
+                  }
                 }}
               >
                 <PersonAvatar person={p} size="xs" /> Ping {p.name}

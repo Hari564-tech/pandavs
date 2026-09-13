@@ -136,14 +136,21 @@ export const DocumentService = {
   },
 
   async deleteDocument(callerUserId: string, documentId: string) {
-    const doc = await DocumentRepository.findById(documentId);
-    if (!doc) throw new NotFoundError("Document");
-
     const ctx = await getAuthContext(callerUserId);
     requireRole(ctx, ["super_admin", "faculty", "lead"]);
 
+    const doc = await DocumentRepository.findById(documentId);
+    if (!doc) {
+      // Document already removed or not found; return success cleanly
+      return { success: true, id: documentId };
+    }
+
     if (doc.storagePath) {
-      await StorageService.deleteFile(doc.storagePath);
+      try {
+        await StorageService.deleteFile(doc.storagePath);
+      } catch (storageErr) {
+        console.warn("Storage deleteFile warning:", storageErr);
+      }
     }
 
     await DocumentRepository.delete(documentId);

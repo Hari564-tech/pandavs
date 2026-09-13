@@ -421,6 +421,15 @@ export const pingAllPendingFn = createServerFn({ method: "POST" })
     return NotificationService.pingAllPending(context.userId, data);
   });
 
+export const sendReminderFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    (d: { targetUserId: string; title: string; body: string; href?: string }) => d,
+  )
+  .handler(async ({ data, context }) => {
+    return NotificationService.sendReminder(context.userId, data);
+  });
+
 // Analytics & Admin
 export const getDashboardAnalyticsFn = createServerFn({ method: "GET" }).handler(async () => {
   return AnalyticsService.getDashboardAnalytics();

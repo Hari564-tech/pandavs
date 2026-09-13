@@ -31,6 +31,7 @@ import {
   presignUploadFn,
   resetUserPasswordFn,
   reviewReportFn,
+  sendReminderFn,
   sendMessageFn,
   submitReportFn,
   toggleSubtaskFn,
@@ -390,6 +391,7 @@ export function useSendMessageMutation() {
     mutationFn: (data: { channelId: string; body: string }) => sendMessageFn({ data }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["messages", vars.channelId] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
 }
@@ -417,7 +419,7 @@ export function useNotificationsQuery() {
   return useQuery({
     queryKey: ["notifications"],
     queryFn: () => listNotificationsFn(),
-    refetchInterval: 15000,
+    refetchInterval: 5000,
   });
 }
 
@@ -455,6 +457,17 @@ export function usePingAllPendingMutation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (pendingIds: string[]) => pingAllPendingFn({ data: pendingIds }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+}
+
+export function useSendReminderMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Parameters<typeof sendReminderFn>[0]["data"]) =>
+      sendReminderFn({ data }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["notifications"] });
     },

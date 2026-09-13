@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Bell } from "lucide-react";
+import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
 import { StatusBadge } from "@/components/status-badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useTeamQuery, useProjectsQuery, useTasksQuery } from "@/lib/api-hooks";
+import { useTeamQuery, useProjectsQuery, useTasksQuery, usePingMemberMutation, useMeQuery } from "@/lib/api-hooks";
 import { useHub } from "@/lib/store";
 import type { Person, Role } from "@/lib/types";
 
@@ -19,6 +21,8 @@ export function TeamPage() {
   const { data: team = [], isLoading, isError, error, refetch } = useTeamQuery();
   const { data: projects = [] } = useProjectsQuery();
   const { data: tasks = [] } = useTasksQuery();
+  const { data: meData } = useMeQuery();
+  const pingMember = usePingMemberMutation();
 
   const people: Person[] = useMemo(() => {
     return team.map((u) => ({
@@ -116,7 +120,28 @@ export function TeamPage() {
                     <div className="font-semibold group-hover:text-accent transition-colors">{p.name}</div>
                     <div className="text-xs text-muted">{p.title}</div>
                   </div>
-                  <StatusBadge value={p.role} />
+                  <div className="flex items-center gap-1.5">
+                    <StatusBadge value={p.role} />
+                    {meData?.profile?.user_id !== p.id && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-1.5 text-[11px] text-muted hover:text-accent hover:bg-accent/10"
+                        title={`Send notification reminder to ${p.name}`}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            await pingMember.mutateAsync(p.id);
+                            toast.success(`Reminder sent to ${p.name}`);
+                          } catch (err) {
+                            toast.error("Failed to send reminder");
+                          }
+                        }}
+                      >
+                        <Bell className="h-3 w-3 mr-0.5" /> Remind
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-2 font-mono text-[11px] text-muted">{p.email}</div>
                 <div className="mt-1 text-xs text-muted">

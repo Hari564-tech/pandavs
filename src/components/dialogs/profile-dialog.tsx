@@ -15,6 +15,7 @@ import {
   Edit3,
   Loader2,
   Sparkles,
+  Bell,
 } from "lucide-react";
 import {
   Dialog,
@@ -34,6 +35,7 @@ import {
   useUpdateProfileMutation,
   usePresignAvatarUploadMutation,
   useUploadAvatarMutation,
+  usePingMemberMutation,
 } from "@/lib/api-hooks";
 
 export function ProfileDialog() {
@@ -46,6 +48,7 @@ export function ProfileDialog() {
   const updateProfile = useUpdateProfileMutation();
   const presignAvatar = usePresignAvatarUploadMutation();
   const uploadAvatar = useUploadAvatarMutation();
+  const pingMember = usePingMemberMutation();
 
   const activeUser = meData?.profile;
   const isSelf = !targetUserId || targetUserId === activeUser?.user_id;
@@ -304,6 +307,28 @@ export function ProfileDialog() {
                     </Button>
                   </>
                 )}
+              </div>
+            )}
+
+            {!isSelf && profile && (
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={pingMember.isPending}
+                  onClick={async () => {
+                    try {
+                      await pingMember.mutateAsync(profile.user_id);
+                      toast.success(`Reminder notification sent to ${profile.name}`);
+                    } catch (err) {
+                      toast.error("Failed to send reminder");
+                    }
+                  }}
+                  className="border-slate-700 bg-slate-900/80 hover:bg-slate-800 text-slate-200 text-xs"
+                >
+                  <Bell className="w-3.5 h-3.5 mr-1.5 text-accent" />
+                  {pingMember.isPending ? "Sending..." : "Ping / Remind"}
+                </Button>
               </div>
             )}
           </div>

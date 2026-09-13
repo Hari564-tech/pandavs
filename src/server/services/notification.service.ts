@@ -15,24 +15,32 @@ export const NotificationService = {
     return NotificationRepository.markAllRead(callerUserId);
   },
 
-  async pingMember(callerUserId: string, targetUserId: string) {
+  async pingMember(
+    callerUserId: string,
+    targetUserId: string,
+    customMessage?: string,
+    customTitle?: string,
+    href?: string,
+  ) {
     const targetUser = await UserRepository.findById(targetUserId);
     const callerUser = await UserRepository.findById(callerUserId);
 
     await NotificationRepository.create({
-      id: `ping-${Date.now()}-${targetUserId}`,
+      id: `ping-${Date.now()}-${targetUserId.slice(0, 8)}-${Math.random().toString(36).slice(2, 6)}`,
       userId: targetUserId,
       kind: "alert",
-      title: "Daily report reminder",
-      body: `${callerUser?.name ?? "Supervisor"} reminded you to file today's daily work report.`,
-      href: "/reports",
+      title: customTitle || "Daily report reminder",
+      body:
+        customMessage ||
+        `${callerUser?.name ?? "Supervisor"} reminded you to file today's daily work report.`,
+      href: href || "/reports",
     });
 
     await ActivityRepository.create({
-      id: `act-${Date.now()}`,
+      id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       actorId: callerUserId,
       kind: "ping",
-      text: `nudged ${targetUser?.name ?? targetUserId} to submit today's standup`,
+      text: `reminded ${targetUser?.name ?? targetUserId} (${customTitle || "daily standup"})`,
     });
 
     return { success: true };
@@ -43,5 +51,18 @@ export const NotificationService = {
       await this.pingMember(callerUserId, id);
     }
     return { count: pendingIds.length };
+  },
+
+  async sendReminder(
+    callerUserId: string,
+    data: { targetUserId: string; title: string; body: string; href?: string },
+  ) {
+    return this.pingMember(
+      callerUserId,
+      data.targetUserId,
+      data.body,
+      data.title,
+      data.href,
+    );
   },
 };
