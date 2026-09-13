@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ExternalLink, FileText, Plus, Terminal, Loader2, Github, Trash2, Edit3 } from "lucide-react";
+import { ExternalLink, FileText, Plus, Terminal, Loader2, Github, Trash2, Edit3, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
@@ -16,6 +16,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { DOCUMENTS, MILESTONES, PEOPLE } from "@/lib/seed";
 import { useHub } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -26,7 +28,11 @@ import {
   useTeamQuery,
   useMeQuery,
   useDeleteProjectMutation,
+  useAddProjectMemberMutation,
+  useRemoveProjectMemberMutation,
+  useDeleteDocumentMutation,
 } from "@/lib/api-hooks";
+import { getDocumentDownloadUrlFn } from "@/server/fns";
 import type { Person } from "@/lib/types";
 
 export const Route = createFileRoute("/projects/$projectId")({ component: ProjectDetail });
@@ -40,16 +46,29 @@ function ProjectDetail() {
   const { data: team = [] } = useTeamQuery();
   const { data: meData } = useMeQuery();
   const deleteProjectMutation = useDeleteProjectMutation();
+  const addMemberMutation = useAddProjectMemberMutation();
+  const removeMemberMutation = useRemoveProjectMemberMutation();
+  const deleteDocMutation = useDeleteDocumentMutation();
   const setProjectDialog = useHub((s) => s.setProjectDialog);
 
   const [tab, setTab] = useState("overview");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [selectedRole, setSelectedRole] = useState<"member" | "lead">("member");
+  const [docToDelete, setDocToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [memberToRemove, setMemberToRemove] = useState<{ id: string; name: string } | null>(null);
   const setTask = useHub((s) => s.setTaskDialog);
 
-  const canManage =
-    meData?.profile?.role === "super_admin" ||
-    meData?.profile?.role === "faculty" ||
-    meData?.profile?.role === "lead";
+  const isSuperAdminOrFaculty =
+    meData?.profile?.role === "super_admin" || meData?.profile?.role === "faculty";
+  const isProjectLead =
+    project?.leadId === meData?.profile?.user_id ||
+    (meData?.profile?.role === "lead" && (!project?.leadId || project?.leadId === meData?.profile?.user_id));
+
+  const canManage = isSuperAdminOrFaculty || meData?.profile?.role === "lead";
+  const canManageMembers = isSuperAdminOrFaculty || (meData?.profile?.role === "lead" && isProjectLead);
+  const canDeleteDocs = isSuperAdminOrFaculty || meData?.profile?.role === "lead";
 
   async function handleDeleteProject() {
     if (!project) return;
@@ -60,6 +79,74 @@ function ProjectDetail() {
       navigate({ to: "/projects" });
     } catch (err: unknown) {
       toast.error("Failed to delete project", {
+        description: (err as Error)?.message || "Server error occurred",
+      });
+    }
+  }
+
+  async function handleAddMember(e: React.FormEvent) {
+    e.preventDefault();
+    if (!project || !selectedUserId) {
+      toast.error("Please select a team member to add");
+      return;
+    }
+    try {
+      await addMemberMutation.mutateAsync({
+        projectId: project.id,
+        userId: selectedUserId,
+        role: selectedRole,
+      });
+      toast.success("Team member added to project");
+      setSelectedUserId("");
+      setSelectedRole("member");
+      setAddMemberOpen(false);
+    } catch (err: unknown) {
+      toast.error("Failed to add member", {
+        description: (err as Error)?.message || "Server error occurred",
+      });
+    }
+  }
+
+  async function handleRemoveMemberConfirm() {
+    if (!project || !memberToRemove) return;
+    try {
+      await removeMemberMutation.mutateAsync({
+        projectId: project.id,
+        userId: memberToRemove.id,
+      });
+      toast.success("Member removed from project", { description: memberToRemove.name });
+      setMemberToRemove(null);
+    } catch (err: unknown) {
+      toast.error("Failed to remove member", {
+        description: (err as Error)?.message || "Server error occurred",
+      });
+    }
+  }
+
+  async function handleDownloadDoc(docId: string, name: string) {
+    try {
+      const downloadUrl = await getDocumentDownloadUrlFn({ data: docId });
+      if (downloadUrl) {
+        window.open(downloadUrl, "_blank");
+        toast.success(`Accessing signed document: ${name}`);
+      } else {
+        toast.info(`Document ${name} verified`);
+      }
+    } catch (err: unknown) {
+      toast.error("Failed to generate download URL", {
+        description: (err as Error)?.message || "Unauthorized access",
+      });
+    }
+  }
+
+  async function handleDeleteDocConfirm() {
+    if (!docToDelete) return;
+    try {
+      await deleteDocMutation.mutateAsync({ documentId: docToDelete.id });
+      toast.success("Document deleted", { description: docToDelete.name });
+      setDocToDelete(null);
+    } catch (err: unknown) {
+      toast.error("Failed to delete document", {
         description: (err as Error)?.message || "Server error occurred",
       });
     }
@@ -112,6 +199,9 @@ function ProjectDetail() {
   const lead = getPerson(project.leadId);
   const faculty = getPerson(project.facultyId);
   const members = project.memberIds.map((id) => getPerson(id)).filter(Boolean) as Person[];
+  const availableToAdd = team.filter(
+    (u) => !project.memberIds.includes(u.user_id) && u.user_id !== project.leadId && u.user_id !== project.facultyId,
+  );
 
   const miles = MILESTONES.filter((m) => m.projectId === projectId);
   const milestones = miles.length ? miles : MILESTONES.filter((m) => m.projectId === "team-portal");
@@ -302,6 +392,12 @@ function ProjectDetail() {
           </div>
         </TabsContent>
         <TabsContent value="docs">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-display text-base font-semibold">Project Documents ({displayDocs.length})</h2>
+            <Button size="sm" onClick={() => navigate({ to: "/documents" })}>
+              <Plus className="mr-1 h-3.5 w-3.5" /> Upload Spec
+            </Button>
+          </div>
           <div className="space-y-2">
             {(displayDocs.length ? displayDocs : DOCUMENTS.slice(0, 3)).map((d) => (
               <Card key={d.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
@@ -319,27 +415,223 @@ function ProjectDetail() {
                     </div>
                   </div>
                 </div>
-                <Button size="sm" variant="secondary" onClick={() => toast.info(`Viewing ${d.name}`)}>
-                  <ExternalLink /> Open
-                </Button>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-        <TabsContent value="team">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {members.map((m) => (
-              <Card key={m.id} className="flex items-center gap-3 p-3">
-                <PersonAvatar person={m} showPresence />
-                <div>
-                  <div className="text-sm font-semibold">{m.name}</div>
-                  <div className="text-xs text-muted">{m.title}</div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => handleDownloadDoc(d.id, d.name)}>
+                    <ExternalLink className="mr-1 h-3.5 w-3.5" /> Open
+                  </Button>
+                  {canDeleteDocs && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                      onClick={() => setDocToDelete({ id: d.id, name: d.name })}
+                    >
+                      <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
+                    </Button>
+                  )}
                 </div>
               </Card>
             ))}
+            {displayDocs.length === 0 && (
+              <p className="text-sm text-muted">No documents uploaded for this project yet.</p>
+            )}
+          </div>
+        </TabsContent>
+        <TabsContent value="team">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <h2 className="font-display text-base font-semibold">Team Members ({members.length})</h2>
+              <p className="text-xs text-muted">Active engineers, leads, and faculty assigned to this project.</p>
+            </div>
+            {canManageMembers && (
+              <Button size="sm" onClick={() => setAddMemberOpen(true)} className="gap-1.5">
+                <UserPlus className="h-3.5 w-3.5" /> Add Member
+              </Button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {members.map((m) => {
+              const isLead = m.id === project.leadId;
+              const isFaculty = m.id === project.facultyId;
+              return (
+                <Card key={m.id} className="flex items-center justify-between p-3">
+                  <div className="flex items-center gap-3">
+                    <PersonAvatar person={m} showPresence />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold">{m.name}</span>
+                        {isLead ? (
+                          <span className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-accent">
+                            Lead
+                          </span>
+                        ) : isFaculty ? (
+                          <span className="rounded bg-blue-500/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-blue-400">
+                            Faculty
+                          </span>
+                        ) : (
+                          <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-muted">
+                            Member
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted">{m.title} · {m.email}</div>
+                    </div>
+                  </div>
+                  {canManageMembers && !isLead && !isFaculty && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                      title="Remove from project"
+                      onClick={() => setMemberToRemove({ id: m.id, name: m.name })}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </Card>
+              );
+            })}
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Add Member Dialog */}
+      <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-accent" /> Add Team Member to {project.code}
+            </DialogTitle>
+            <DialogDescription>
+              Assign registered engineers or leads to this project. Team leads can manage member assignments.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAddMember} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Select user</Label>
+              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose engineer or lead..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableToAdd.map((u) => (
+                    <SelectItem key={u.user_id} value={u.user_id}>
+                      {u.name} ({u.role.toUpperCase()} · {u.dept || u.email})
+                    </SelectItem>
+                  ))}
+                  {availableToAdd.length === 0 && (
+                    <div className="p-2 text-center text-xs text-muted">All registered team members are already on this project.</div>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Project Role</Label>
+              <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as "member" | "lead")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="member">Team Member / Intern</SelectItem>
+                  <SelectItem value="lead">Co-Lead</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setAddMemberOpen(false)}
+                disabled={addMemberMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!selectedUserId || addMemberMutation.isPending}>
+                {addMemberMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Adding...
+                  </>
+                ) : (
+                  "Add to Project"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove Member Confirmation Dialog */}
+      <Dialog open={!!memberToRemove} onOpenChange={(open) => !open && setMemberToRemove(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-danger">
+              <Trash2 className="h-5 w-5" /> Remove Member
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove <strong>{memberToRemove?.name}</strong> from{" "}
+              <strong>{project.name}</strong>? They will no longer have access to this project's tasks and documents.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => setMemberToRemove(null)}
+              disabled={removeMemberMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleRemoveMemberConfirm}
+              disabled={removeMemberMutation.isPending}
+            >
+              {removeMemberMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Removing...
+                </>
+              ) : (
+                "Remove Member"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Document Confirmation Dialog */}
+      <Dialog open={!!docToDelete} onOpenChange={(open) => !open && setDocToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-danger">
+              <Trash2 className="h-5 w-5" /> Delete Document
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{docToDelete?.name}</strong>? This action will permanently remove the document and its stored file.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => setDocToDelete(null)}
+              disabled={deleteDocMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleDeleteDocConfirm}
+              disabled={deleteDocMutation.isPending}
+            >
+              {deleteDocMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...
+                </>
+              ) : (
+                "Delete Document"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>

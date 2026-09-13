@@ -2,7 +2,7 @@ import { DocumentRepository } from "@/server/repositories/document.repo";
 import { ActivityRepository } from "@/server/repositories/activity.repo";
 import { AuditRepository } from "@/server/repositories/audit.repo";
 import { StorageService } from "@/server/storage/supabase-storage";
-import { getAuthContext, requireProjectAccess } from "@/server/policies/rbac";
+import { getAuthContext, requireProjectAccess, requireRole } from "@/server/policies/rbac";
 import { NotFoundError } from "@/server/errors";
 import { PresignUploadSchema, CompleteDocumentUploadSchema } from "@/server/schemas";
 
@@ -133,5 +133,38 @@ export const DocumentService = {
     }
 
     return StorageService.createSignedDownloadUrl(doc.storagePath);
+  },
+
+  async deleteDocument(callerUserId: string, documentId: string) {
+    const doc = await DocumentRepository.findById(documentId);
+    if (!doc) throw new NotFoundError("Document");
+
+    const ctx = await getAuthContext(callerUserId);
+    requireRole(ctx, ["super_admin", "faculty", "lead"]);
+
+    if (doc.storagePath) {
+      await StorageService.deleteFile(doc.storagePath);
+    }
+
+    await DocumentRepository.delete(documentId);
+
+    await AuditRepository.log({
+      id: `audit-${Date.now()}`,
+      actorId: callerUserId,
+      action: "document_deleted",
+      targetType: "document",
+      targetId: documentId,
+      metadataJson: { name: doc.name, projectId: doc.projectId },
+    });
+
+    await ActivityRepository.create({
+      id: `act-${Date.now()}`,
+      actorId: callerUserId,
+      kind: "blocker",
+      text: `deleted document ${doc.name}`,
+      projectId: doc.projectId,
+    });
+
+    return { success: true, id: documentId };
   },
 };

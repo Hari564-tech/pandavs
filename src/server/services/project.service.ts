@@ -2,6 +2,8 @@ import { ProjectRepository } from "@/server/repositories/project.repo";
 import { AuditRepository } from "@/server/repositories/audit.repo";
 import { ActivityRepository } from "@/server/repositories/activity.repo";
 import { getAuthContext, requireRole, requireProjectAccess } from "@/server/policies/rbac";
+import { getDb } from "@/server/db/kysely";
+import { ForbiddenError, ValidationError, NotFoundError } from "@/server/errors";
 import type { ProjectStatusType } from "@/server/db/types";
 
 export const ProjectService = {
@@ -171,5 +173,86 @@ export const ProjectService = {
     });
 
     return { success: true, id: projectId };
+  },
+
+  async addMember(
+    callerUserId: string,
+    projectId: string,
+    data: { userId: string; role?: "lead" | "faculty" | "member" },
+  ) {
+    const ctx = await getAuthContext(callerUserId);
+    if (ctx.role !== "super_admin" && ctx.role !== "faculty") {
+      const db = getDb();
+      const project = await db
+        .selectFrom("projects")
+        .select(["lead_id"])
+        .where("id", "=", projectId)
+        .executeTakeFirst();
+      if (!project || project.lead_id !== callerUserId) {
+        throw new ForbiddenError("Only the project team lead, faculty guide, or super admin can add members to this project.");
+      }
+    }
+
+    const updated = await ProjectRepository.addMember(projectId, data.userId, data.role ?? "member");
+
+    await AuditRepository.log({
+      id: `audit-${Date.now()}`,
+      actorId: callerUserId,
+      action: "project_member_added",
+      targetType: "project",
+      targetId: projectId,
+      metadataJson: { userId: data.userId, role: data.role ?? "member" },
+    });
+
+    await ActivityRepository.create({
+      id: `act-${Date.now()}`,
+      actorId: callerUserId,
+      kind: "commit",
+      text: `added member to project`,
+      projectId,
+    });
+
+    return updated;
+  },
+
+  async removeMember(callerUserId: string, projectId: string, userId: string) {
+    const ctx = await getAuthContext(callerUserId);
+    if (ctx.role !== "super_admin" && ctx.role !== "faculty") {
+      const db = getDb();
+      const project = await db
+        .selectFrom("projects")
+        .select(["lead_id"])
+        .where("id", "=", projectId)
+        .executeTakeFirst();
+      if (!project || project.lead_id !== callerUserId) {
+        throw new ForbiddenError("Only the project team lead, faculty guide, or super admin can remove members from this project.");
+      }
+    }
+
+    const project = await ProjectRepository.findById(projectId);
+    if (project && (project.leadId === userId || project.facultyId === userId)) {
+      throw new ValidationError("Cannot remove designated project lead or faculty PM from members.");
+    }
+
+    const updated = await ProjectRepository.removeMember(projectId, userId);
+
+    await AuditRepository.log({
+      id: `audit-${Date.now()}`,
+      actorId: callerUserId,
+      action: "project_member_removed",
+      targetType: "project",
+      targetId: projectId,
+      metadataJson: { userId },
+    });
+
+    await ActivityRepository.create({
+      id: `act-${Date.now()}`,
+      actorId: callerUserId,
+      kind: "blocker",
+      text: `removed member from project`,
+      projectId,
+    });
+
+    return updated;
   },
 };

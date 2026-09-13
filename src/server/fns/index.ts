@@ -189,6 +189,20 @@ export const deleteProjectFn = createServerFn({ method: "POST" })
     return ProjectService.deleteProject(context.userId, data.projectId);
   });
 
+export const addProjectMemberFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((d: { projectId: string; userId: string; role?: "lead" | "faculty" | "member" }) => d)
+  .handler(async ({ data, context }) => {
+    return ProjectService.addMember(context.userId, data.projectId, data);
+  });
+
+export const removeProjectMemberFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((d: { projectId: string; userId: string }) => d)
+  .handler(async ({ data, context }) => {
+    return ProjectService.removeMember(context.userId, data.projectId, data.userId);
+  });
+
 // Tasks
 export const listTasksFn = createServerFn({ method: "GET" })
   .validator(
@@ -328,6 +342,13 @@ export const getDocumentDownloadUrlFn = createServerFn({ method: "GET" })
   .validator((documentId: string) => documentId)
   .handler(async ({ data, context }) => {
     return DocumentService.getDownloadUrl(context.userId, data);
+  });
+
+export const deleteDocumentFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((d: { documentId: string }) => d)
+  .handler(async ({ data, context }) => {
+    return DocumentService.deleteDocument(context.userId, data.documentId);
   });
 
 // Chat

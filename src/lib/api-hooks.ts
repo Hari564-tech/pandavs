@@ -4,9 +4,12 @@ import {
   createProjectFn,
   updateProjectFn,
   deleteProjectFn,
+  addProjectMemberFn,
+  removeProjectMemberFn,
   createTaskFn,
   getDashboardAnalyticsFn,
   getDocumentDownloadUrlFn,
+  deleteDocumentFn,
   getMeFn,
   getProjectDetailFn,
   listAuditLogsFn,
@@ -193,6 +196,32 @@ export function useDeleteProjectMutation() {
   });
 }
 
+export function useAddProjectMemberMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Parameters<typeof addProjectMemberFn>[0]["data"]) =>
+      addProjectMemberFn({ data }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["projects", vars.projectId] });
+      qc.invalidateQueries({ queryKey: ["team"] });
+    },
+  });
+}
+
+export function useRemoveProjectMemberMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Parameters<typeof removeProjectMemberFn>[0]["data"]) =>
+      removeProjectMemberFn({ data }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["projects", vars.projectId] });
+      qc.invalidateQueries({ queryKey: ["team"] });
+    },
+  });
+}
+
 // Tasks
 export function useTasksQuery(filter?: {
   projectId?: string;
@@ -310,6 +339,20 @@ export function useUploadDocumentDirectMutation() {
       uploadDocumentDirectFn({ data }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["documents"] });
+      qc.invalidateQueries({ queryKey: ["dashboard_analytics"] });
+      qc.invalidateQueries({ queryKey: ["activity"] });
+    },
+  });
+}
+
+export function useDeleteDocumentMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Parameters<typeof deleteDocumentFn>[0]["data"]) =>
+      deleteDocumentFn({ data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["documents"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["dashboard_analytics"] });
       qc.invalidateQueries({ queryKey: ["activity"] });
     },

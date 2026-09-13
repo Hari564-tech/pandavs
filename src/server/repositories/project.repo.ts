@@ -187,4 +187,32 @@ export const ProjectRepository = {
       .orderBy("date", "asc")
       .execute();
   },
+
+  async addMember(projectId: string, userId: string, memberRole: "lead" | "faculty" | "member" = "member") {
+    const db = getDb();
+    await db
+      .insertInto("project_members")
+      .values({
+        project_id: projectId,
+        user_id: userId,
+        member_role: memberRole,
+      })
+      .onConflict((oc) =>
+        oc.columns(["project_id", "user_id"]).doUpdateSet({
+          member_role: memberRole,
+        })
+      )
+      .execute();
+    return this.findById(projectId);
+  },
+
+  async removeMember(projectId: string, userId: string) {
+    const db = getDb();
+    await db
+      .deleteFrom("project_members")
+      .where("project_id", "=", projectId)
+      .where("user_id", "=", userId)
+      .execute();
+    return this.findById(projectId);
+  },
 };

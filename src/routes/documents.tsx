@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { FileText, Plus, Download, Loader2, Upload } from "lucide-react";
+import { FileText, Plus, Download, Loader2, Upload, Trash2 } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/status-badge";
@@ -20,6 +20,8 @@ import {
   useDocumentsQuery,
   useProjectsQuery,
   useTeamQuery,
+  useMeQuery,
+  useDeleteDocumentMutation,
   usePresignUploadMutation,
   useCompleteUploadMutation,
   useUploadDocumentDirectMutation,
@@ -45,10 +47,32 @@ function DocumentsPage() {
   const { data: documents = [], isLoading, isError, error, refetch } = useDocumentsQuery();
   const { data: projects = [] } = useProjectsQuery();
   const { data: team = [] } = useTeamQuery();
+  const { data: meData } = useMeQuery();
 
   const presignUpload = usePresignUploadMutation();
   const completeUpload = useCompleteUploadMutation();
   const uploadDocumentDirect = useUploadDocumentDirectMutation();
+  const deleteDocMutation = useDeleteDocumentMutation();
+
+  const [docToDelete, setDocToDelete] = useState<{ id: string; name: string } | null>(null);
+
+  const canDeleteDocs =
+    meData?.profile?.role === "super_admin" ||
+    meData?.profile?.role === "faculty" ||
+    meData?.profile?.role === "lead";
+
+  async function handleDeleteDocConfirm() {
+    if (!docToDelete) return;
+    try {
+      await deleteDocMutation.mutateAsync({ documentId: docToDelete.id });
+      toast.success("Document deleted", { description: docToDelete.name });
+      setDocToDelete(null);
+    } catch (err: unknown) {
+      toast.error("Failed to delete document", {
+        description: (err as Error)?.message || "Server error occurred",
+      });
+    }
+  }
 
   const getPerson = (id: string): Person | undefined => {
     const fromTeam = team.find((u) => u.user_id === id);
@@ -230,6 +254,16 @@ function DocumentsPage() {
                   <Button size="sm" variant="secondary" onClick={() => handleDownload(d.id, d.name)}>
                     <Download className="mr-1 h-4 w-4" /> Open / Download
                   </Button>
+                  {canDeleteDocs && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                      onClick={() => setDocToDelete({ id: d.id, name: d.name })}
+                    >
+                      <Trash2 className="mr-1 h-4 w-4" /> Delete
+                    </Button>
+                  )}
                 </div>
               </Card>
             );
@@ -331,6 +365,44 @@ function DocumentsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!docToDelete} onOpenChange={(open) => !open && setDocToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete document</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to permanently delete "{docToDelete?.name}"? All associated versions and stored files will be removed. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setDocToDelete(null)}
+              disabled={deleteDocMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={handleDeleteDocConfirm}
+              disabled={deleteDocMutation.isPending}
+            >
+              {deleteDocMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...
+                </>
+              ) : (
+                "Delete Document"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+

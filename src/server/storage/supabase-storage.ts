@@ -215,4 +215,16 @@ export const StorageService = {
     }
     return `${supabaseUrl}/storage/v1/object/public/documents/${storagePath}`;
   },
+
+  async deleteFile(storagePath: string) {
+    const { supabaseUrl, serviceKey } = getSupabaseCredentials();
+
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabase = createClient(supabaseUrl, serviceKey);
+      await supabase.storage.from("documents").remove([storagePath]);
+    } catch (err) {
+      console.warn("[storage] Supabase remove file error:", err);
+    }
+  },
 };

@@ -143,4 +143,9 @@ export const DocumentRepository = {
       return versionId;
     });
   },
+
+  async delete(id: string) {
+    const db = getDb();
+    return db.deleteFrom("documents").where("id", "=", id).executeTakeFirst();
+  },
 };
