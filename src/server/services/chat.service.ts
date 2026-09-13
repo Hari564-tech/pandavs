@@ -2,7 +2,10 @@ import { ChatRepository } from "@/server/repositories/chat.repo";
 import { RealtimeService } from "@/server/realtime/supabase-realtime";
 import { NotificationRepository } from "@/server/repositories/notification.repo";
 import { UserRepository } from "@/server/repositories/user.repo";
+import { AuditRepository } from "@/server/repositories/audit.repo";
+import { ActivityRepository } from "@/server/repositories/activity.repo";
 import { getDb } from "@/server/db/kysely";
+import { getAuthContext, requireRole } from "@/server/policies/rbac";
 import { SendChatMessageSchema } from "@/server/schemas";
 
 export const ChatService = {
@@ -67,5 +70,44 @@ export const ChatService = {
 
   async markRead(callerUserId: string, channelId: string) {
     return ChatRepository.markRead(channelId, callerUserId);
+  },
+
+  async clearMessages(callerUserId: string, options?: { channelId?: string; all?: boolean }) {
+    const ctx = await getAuthContext(callerUserId);
+    requireRole(ctx, ["super_admin"]);
+
+    await ChatRepository.clearMessages(options);
+
+    // Broadcast clear event via realtime
+    await RealtimeService.publish({
+      channel: options?.all ? "chat:all" : `chat:${options?.channelId}`,
+      event: "chat_cleared",
+      payload: {
+        clearedBy: callerUserId,
+        channelId: options?.all ? null : options?.channelId,
+        all: Boolean(options?.all),
+      },
+    });
+
+    await AuditRepository.log({
+      id: `audit-${Date.now()}`,
+      actorId: callerUserId,
+      action: "chat_cleared",
+      targetType: "chat",
+      targetId: options?.all ? "all" : (options?.channelId || "team-portal"),
+      metadataJson: options || {},
+    });
+
+    await ActivityRepository.create({
+      id: `act-${Date.now()}`,
+      actorId: callerUserId,
+      kind: "blocker",
+      text: options?.all
+        ? "cleared all chat history for everyone"
+        : `cleared #${options?.channelId || "team-portal"} chat history`,
+      projectId: null,
+    });
+
+    return { success: true };
   },
 };

@@ -1,17 +1,60 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef, useEffect, type FormEvent } from "react";
-import { Send, Loader2, MessageSquare } from "lucide-react";
+import { Send, Loader2, MessageSquare, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { useChannelsQuery, useMessagesQuery, useSendMessageMutation, useTeamQuery } from "@/lib/api-hooks";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  useChannelsQuery,
+  useMessagesQuery,
+  useSendMessageMutation,
+  useTeamQuery,
+  useMeQuery,
+  useClearMessagesMutation,
+} from "@/lib/api-hooks";
 import { useHub } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { Person } from "@/lib/types";
 
 export const Route = createFileRoute("/chat")({ component: ChatPage });
+
+function formatMessageTime(at: string, createdAt?: string): string {
+  const timestamp = createdAt || at;
+  const d = new Date(timestamp);
+  if (!isNaN(d.getTime())) {
+    const now = new Date();
+    const isToday =
+      d.getDate() === now.getDate() &&
+      d.getMonth() === now.getMonth() &&
+      d.getFullYear() === now.getFullYear();
+
+    const timeStr = d.toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+
+    if (isToday) {
+      return timeStr;
+    }
+
+    const dateStr = d.toLocaleDateString([], {
+      month: "short",
+      day: "numeric",
+    });
+    return `${dateStr}, ${timeStr}`;
+  }
+  return at;
+}
 
 export function ChatPage() {
   const { data: channels = [], isLoading: isChannelsLoading } = useChannelsQuery();
@@ -20,8 +63,14 @@ export function ChatPage() {
 
   const { data: messages = [], isLoading: isMessagesLoading } = useMessagesQuery(activeChannelId);
   const { data: team = [] } = useTeamQuery();
+  const { data: meData } = useMeQuery();
   const sendMessage = useSendMessageMutation();
+  const clearMessages = useClearMessagesMutation();
   const setProfileDialog = useHub((s) => s.setProfileDialog);
+
+  const isSuperAdmin = meData?.profile?.role === "super_admin";
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [clearScope, setClearScope] = useState<"channel" | "all">("channel");
 
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -31,6 +80,25 @@ export function ChatPage() {
     name: "team-portal",
     topic: "Engineering discussions & blockers",
   };
+
+  async function handleClearChatConfirm() {
+    try {
+      await clearMessages.mutateAsync({
+        channelId: clearScope === "channel" ? activeChannelId : undefined,
+        all: clearScope === "all",
+      });
+      toast.success(
+        clearScope === "all"
+          ? "All chat history has been cleared for everyone"
+          : `Chat cleared for #${currentChannel.name}`,
+      );
+      setClearDialogOpen(false);
+    } catch (err: unknown) {
+      toast.error("Failed to clear chat", {
+        description: (err as Error)?.message || "Server error occurred",
+      });
+    }
+  }
 
   const getPerson = (id: string): Person => {
     const fromTeam = team.find((u) => u.user_id === id);
@@ -131,9 +199,21 @@ export function ChatPage() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="border-b border-border px-4 py-3">
-          <div className="font-display text-sm font-semibold">#{currentChannel.name}</div>
-          <div className="text-xs text-muted">{currentChannel.topic}</div>
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div>
+            <div className="font-display text-sm font-semibold">#{currentChannel.name}</div>
+            <div className="text-xs text-muted">{currentChannel.topic}</div>
+          </div>
+          {isSuperAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+              onClick={() => setClearDialogOpen(true)}
+            >
+              <Trash2 className="h-4 w-4" /> Clear Chat
+            </Button>
+          )}
         </div>
 
         <div className="border-b border-border p-2 sm:hidden">
@@ -183,7 +263,12 @@ export function ChatPage() {
                         >
                           {who.name}
                         </button>
-                        <span className="font-mono text-[10px] text-subtle">{m.at}</span>
+                        <span
+                          className="font-mono text-[10px] text-subtle"
+                          title={m.createdAt ? new Date(m.createdAt).toLocaleString() : m.at}
+                        >
+                          {formatMessageTime(m.at, m.createdAt)}
+                        </span>
                       </div>
                       <p className="whitespace-pre-wrap text-sm text-ink">{m.body}</p>
                     </div>
@@ -206,6 +291,100 @@ export function ChatPage() {
           </Button>
         </form>
       </div>
+
+      {/* Super Admin Clear Chat Dialog */}
+      <Dialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-danger">
+              <Trash2 className="h-5 w-5" /> Clear Chat for Everyone
+            </DialogTitle>
+            <DialogDescription>
+              As Super Admin, you can permanently wipe chat messages for all users. Choose the cleanup scope below.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-2.5 py-2">
+            <button
+              type="button"
+              onClick={() => setClearScope("channel")}
+              className={cn(
+                "flex items-start gap-3 rounded-lg border p-3 text-left transition-all cursor-pointer",
+                clearScope === "channel"
+                  ? "border-accent bg-accent/10"
+                  : "border-border bg-surface-2 hover:bg-surface",
+              )}
+            >
+              <div
+                className={cn(
+                  "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
+                  clearScope === "channel" ? "border-accent bg-accent" : "border-muted",
+                )}
+              >
+                {clearScope === "channel" && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-ink">Clear #{currentChannel.name} only</div>
+                <div className="text-xs text-muted">
+                  Permanently removes all messages in this specific channel for everyone.
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setClearScope("all")}
+              className={cn(
+                "flex items-start gap-3 rounded-lg border p-3 text-left transition-all cursor-pointer",
+                clearScope === "all"
+                  ? "border-danger bg-danger/10"
+                  : "border-border bg-surface-2 hover:bg-surface",
+              )}
+            >
+              <div
+                className={cn(
+                  "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
+                  clearScope === "all" ? "border-danger bg-danger" : "border-muted",
+                )}
+              >
+                {clearScope === "all" && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-danger">Clear ALL channels (Global Wipe)</div>
+                <div className="text-xs text-muted">
+                  Permanently deletes all messages across all chat channels for all users.
+                </div>
+              </div>
+            </button>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setClearDialogOpen(false)}
+              disabled={clearMessages.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={handleClearChatConfirm}
+              disabled={clearMessages.isPending}
+            >
+              {clearMessages.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Clearing...
+                </>
+              ) : (
+                "Clear for Everyone"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

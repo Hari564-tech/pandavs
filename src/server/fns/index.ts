@@ -379,6 +379,13 @@ export const markChannelReadFn = createServerFn({ method: "POST" })
     return ChatService.markRead(context.userId, data);
   });
 
+export const clearMessagesFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((d?: { channelId?: string; all?: boolean }) => d)
+  .handler(async ({ data, context }) => {
+    return ChatService.clearMessages(context.userId, data);
+  });
+
 // Calendar
 export const listCalendarEventsFn = createServerFn({ method: "GET" })
   .validator((monthPrefix?: string) => monthPrefix)

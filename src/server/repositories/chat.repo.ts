@@ -39,7 +39,7 @@ export const ChatRepository = {
     }));
   },
 
-  async listMessages(channelId: string, limit = 50) {
+  async listMessages(channelId: string, limit = 100) {
     const db = getDb();
     const rows = await db
       .selectFrom("messages")
@@ -49,13 +49,22 @@ export const ChatRepository = {
       .limit(limit)
       .execute();
 
-    return rows.map((m) => ({
-      id: m.id,
-      channelId: m.channel_id,
-      authorId: m.author_id,
-      body: m.body,
-      at: new Date(m.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false }),
-    }));
+    return rows.map((m) => {
+      const date = new Date(m.created_at);
+      return {
+        id: m.id,
+        channelId: m.channel_id,
+        authorId: m.author_id,
+        body: m.body,
+        at: date.toLocaleTimeString("en-IN", {
+          timeZone: "Asia/Kolkata",
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        }),
+        createdAt: date.toISOString(),
+      };
+    });
   },
 
   async createMessage(data: {
@@ -77,12 +86,19 @@ export const ChatRepository = {
       .returningAll()
       .executeTakeFirstOrThrow();
 
+    const createdDate = new Date(created.created_at);
     return {
       id: created.id,
       channelId: created.channel_id,
       authorId: created.author_id,
       body: created.body,
-      at: new Date(created.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false }),
+      at: createdDate.toLocaleTimeString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      }),
+      createdAt: createdDate.toISOString(),
     };
   },
 
@@ -101,5 +117,20 @@ export const ChatRepository = {
         }),
       )
       .execute();
+  },
+
+  async clearMessages(options?: { channelId?: string; all?: boolean }) {
+    const db = getDb();
+    if (options?.all) {
+      await db.deleteFrom("messages").execute();
+      await db.deleteFrom("message_reads").execute();
+    } else if (options?.channelId) {
+      await db.deleteFrom("messages").where("channel_id", "=", options.channelId).execute();
+      await db.deleteFrom("message_reads").where("channel_id", "=", options.channelId).execute();
+    } else {
+      await db.deleteFrom("messages").execute();
+      await db.deleteFrom("message_reads").execute();
+    }
+    return { success: true };
   },
 };

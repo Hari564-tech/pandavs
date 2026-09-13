@@ -43,6 +43,7 @@ import {
   deleteUserFn,
   uploadAvatarFn,
   uploadDocumentDirectFn,
+  clearMessagesFn,
 } from "@/server/fns";
 import type { RoleType, TaskPriorityType, TaskStatusType } from "@/server/db/types";
 
@@ -402,6 +403,18 @@ export function useMarkChannelReadMutation() {
     mutationFn: (channelId: string) => markChannelReadFn({ data: channelId }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["channels"] });
+    },
+  });
+}
+
+export function useClearMessagesMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data?: { channelId?: string; all?: boolean }) => clearMessagesFn({ data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["messages"] });
+      qc.invalidateQueries({ queryKey: ["channels"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
 }

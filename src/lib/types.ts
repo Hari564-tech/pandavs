@@ -123,6 +123,7 @@ export type ChatMessage = {
   authorId: string;
   body: string;
   at: string;
+  createdAt?: string;
 };
 
 export type Activity = {
