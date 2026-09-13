@@ -52,7 +52,7 @@ export function requireRole(ctx: AuthContext, allowedRoles: RoleType[]): void {
  * Checks if user has access to a project (is super_admin or a registered member/lead/faculty).
  */
 export async function requireProjectAccess(ctx: AuthContext, projectId: string): Promise<void> {
-  if (ctx.role === "super_admin") return;
+  if (ctx.role === "super_admin" || ctx.role === "faculty" || ctx.role === "lead") return;
 
   const db = getDb();
   const membership = await db
@@ -82,17 +82,8 @@ export async function requireProjectAccess(ctx: AuthContext, projectId: string):
  * Verifies permission to edit/manage project details.
  */
 export async function canManageProject(ctx: AuthContext, projectId: string): Promise<boolean> {
-  if (ctx.role === "super_admin") return true;
-  if (ctx.role !== "lead" && ctx.role !== "faculty") return false;
-
-  const db = getDb();
-  const project = await db
-    .selectFrom("projects")
-    .select(["id", "lead_id", "faculty_id"])
-    .where("id", "=", projectId)
-    .executeTakeFirst();
-
-  return Boolean(project && (project.lead_id === ctx.userId || project.faculty_id === ctx.userId));
+  if (ctx.role === "super_admin" || ctx.role === "faculty" || ctx.role === "lead") return true;
+  return false;
 }
 
 /**

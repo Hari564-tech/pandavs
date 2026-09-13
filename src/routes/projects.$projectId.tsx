@@ -1,5 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ExternalLink, FileText, Plus, Terminal, Loader2 } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { ExternalLink, FileText, Plus, Terminal, Loader2, Github, Trash2, Edit3 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
@@ -8,23 +8,62 @@ import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { DOCUMENTS, MILESTONES, PEOPLE } from "@/lib/seed";
 import { useHub } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { useProjectDetailQuery, useTasksQuery, useDocumentsQuery, useTeamQuery } from "@/lib/api-hooks";
+import {
+  useProjectDetailQuery,
+  useTasksQuery,
+  useDocumentsQuery,
+  useTeamQuery,
+  useMeQuery,
+  useDeleteProjectMutation,
+} from "@/lib/api-hooks";
 import type { Person } from "@/lib/types";
 
 export const Route = createFileRoute("/projects/$projectId")({ component: ProjectDetail });
 
 function ProjectDetail() {
   const { projectId } = Route.useParams();
+  const navigate = useNavigate();
   const { data: project, isLoading, isError, error } = useProjectDetailQuery(projectId);
   const { data: tasks = [] } = useTasksQuery({ projectId });
   const { data: serverDocs = [] } = useDocumentsQuery(projectId);
   const { data: team = [] } = useTeamQuery();
+  const { data: meData } = useMeQuery();
+  const deleteProjectMutation = useDeleteProjectMutation();
+  const setProjectDialog = useHub((s) => s.setProjectDialog);
 
   const [tab, setTab] = useState("overview");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const setTask = useHub((s) => s.setTaskDialog);
+
+  const canManage =
+    meData?.profile?.role === "super_admin" ||
+    meData?.profile?.role === "faculty" ||
+    meData?.profile?.role === "lead";
+
+  async function handleDeleteProject() {
+    if (!project) return;
+    try {
+      await deleteProjectMutation.mutateAsync({ projectId: project.id });
+      toast.success("Project deleted successfully", { description: `${project.code} · ${project.name}` });
+      setDeleteConfirmOpen(false);
+      navigate({ to: "/projects" });
+    } catch (err: unknown) {
+      toast.error("Failed to delete project", {
+        description: (err as Error)?.message || "Server error occurred",
+      });
+    }
+  }
 
   const getPerson = (id: string): Person | undefined => {
     const fromTeam = team.find((u) => u.user_id === id);
@@ -102,21 +141,72 @@ function ProjectDetail() {
             <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">{project.name}</h1>
             <p className="mt-1 text-sm text-muted">{project.abstract}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" onClick={() => toast.message("Edit project", { description: "Faculty lock — request sent." })}>
-              Edit
-            </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {canManage && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setProjectDialog(true, project)}
+                className="gap-1.5"
+              >
+                <Edit3 className="h-3.5 w-3.5" /> Edit
+              </Button>
+            )}
             <Button size="sm" variant="secondary" onClick={() => setTab("team")}>
               Team ({members.length})
             </Button>
-            <Button size="sm" onClick={() => toast.success("Upload ready", { description: "Go to Documents tab to upload private files." })}>
-              <Plus /> Upload
+            <Button size="sm" onClick={() => navigate({ to: "/documents" })}>
+              <Plus className="mr-1 h-3.5 w-3.5" /> Upload Spec
             </Button>
-            <Button size="sm" variant="outline" asChild>
-              <a href={project.repo.startsWith("http") ? project.repo : `https://github.com/${project.repo}`} target="_blank" rel="noreferrer">
-                <Terminal /> Repo
-              </a>
-            </Button>
+
+            {project.repo ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20"
+                asChild
+              >
+                <a
+                  href={project.repo.startsWith("http") ? project.repo : `https://github.com/${project.repo}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Github className="h-3.5 w-3.5 text-blue-400" /> GitHub
+                </a>
+              </Button>
+            ) : canManage ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 border-dashed"
+                onClick={() => setProjectDialog(true, project)}
+              >
+                <Github className="h-3.5 w-3.5" /> Add GitHub
+              </Button>
+            ) : null}
+
+            {project.preview && (
+              <Button size="sm" variant="outline" asChild>
+                <a
+                  href={project.preview.startsWith("http") ? project.preview : `https://${project.preview}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Live Demo
+                </a>
+              </Button>
+            )}
+
+            {canManage && (
+              <Button
+                size="sm"
+                variant="danger"
+                className="gap-1.5 bg-danger/10 text-danger hover:bg-danger/20 border-danger/30"
+                onClick={() => setDeleteConfirmOpen(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Delete
+              </Button>
+            )}
           </div>
         </div>
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -250,6 +340,44 @@ function ProjectDetail() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-danger flex items-center gap-2">
+              <Trash2 className="h-5 w-5" /> Delete Project ({project.code})
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to permanently delete <strong>{project.name}</strong>?
+              This action cannot be undone and will remove all associated tasks, milestones, and reports.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => setDeleteConfirmOpen(false)}
+              disabled={deleteProjectMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleDeleteProject}
+              disabled={deleteProjectMutation.isPending}
+            >
+              {deleteProjectMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Permanently Delete"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -27,6 +27,7 @@ type HubState = {
   commandOpen: boolean;
   reportDialogOpen: boolean;
   projectDialogOpen: boolean;
+  projectDialogEditData: any | null;
   taskDialogOpen: boolean;
   profileDialogOpen: boolean;
   profileTargetUserId: string | null;
@@ -44,7 +45,7 @@ type HubState = {
   toggleSidebar: () => void;
   setCommandOpen: (v: boolean) => void;
   setReportDialog: (v: boolean) => void;
-  setProjectDialog: (v: boolean) => void;
+  setProjectDialog: (open: boolean, projectToEdit?: any | null) => void;
   setTaskDialog: (v: boolean) => void;
   setProfileDialog: (open: boolean, userId?: string | null) => void;
   setNotifOpen: (v: boolean) => void;
@@ -76,6 +77,7 @@ export const useHub = create<HubState>()(
       commandOpen: false,
       reportDialogOpen: false,
       projectDialogOpen: false,
+      projectDialogEditData: null,
       taskDialogOpen: false,
       profileDialogOpen: false,
       profileTargetUserId: null,
@@ -97,7 +99,8 @@ export const useHub = create<HubState>()(
       toggleSidebar: () => set({ sidebarCollapsed: !get().sidebarCollapsed }),
       setCommandOpen: (v) => set({ commandOpen: v }),
       setReportDialog: (v) => set({ reportDialogOpen: v }),
-      setProjectDialog: (v) => set({ projectDialogOpen: v }),
+      setProjectDialog: (open, projectToEdit = null) =>
+        set({ projectDialogOpen: open, projectDialogEditData: open ? projectToEdit : null }),
       setTaskDialog: (v) => set({ taskDialogOpen: v }),
       setProfileDialog: (open, userId = null) =>
         set({ profileDialogOpen: open, profileTargetUserId: userId }),

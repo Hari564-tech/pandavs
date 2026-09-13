@@ -154,6 +154,41 @@ export const createProjectFn = createServerFn({ method: "POST" })
     return ProjectService.createProject(context.userId, data);
   });
 
+export const updateProjectFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    (d: {
+      projectId: string;
+      data: {
+        name?: string;
+        code?: string;
+        subtitle?: string;
+        status?: "planning" | "healthy" | "at_risk" | "delayed";
+        progress?: number;
+        leadId?: string;
+        facultyId?: string;
+        targetDate?: string;
+        targetNote?: string;
+        abstract?: string;
+        repoUrl?: string;
+        previewUrl?: string;
+        cycle?: string;
+        stack?: { name: string; note: string }[];
+        memberIds?: string[];
+      };
+    }) => d,
+  )
+  .handler(async ({ data, context }) => {
+    return ProjectService.updateProject(context.userId, data.projectId, data.data);
+  });
+
+export const deleteProjectFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((d: { projectId: string }) => d)
+  .handler(async ({ data, context }) => {
+    return ProjectService.deleteProject(context.userId, data.projectId);
+  });
+
 // Tasks
 export const listTasksFn = createServerFn({ method: "GET" })
   .validator(

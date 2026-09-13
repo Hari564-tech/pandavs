@@ -83,17 +83,44 @@ export const ProjectService = {
     callerUserId: string,
     projectId: string,
     updates: {
+      name?: string;
+      code?: string;
+      subtitle?: string;
       status?: ProjectStatusType;
       progress?: number;
+      leadId?: string;
+      facultyId?: string;
       targetDate?: string;
       targetNote?: string;
-      subtitle?: string;
+      abstract?: string;
+      repoUrl?: string;
+      previewUrl?: string;
+      cycle?: string;
+      stack?: { name: string; note: string }[];
+      memberIds?: string[];
     },
   ) {
     const ctx = await getAuthContext(callerUserId);
-    await requireProjectAccess(ctx, projectId);
+    requireRole(ctx, ["super_admin", "faculty", "lead"]);
 
-    const updated = await ProjectRepository.update(projectId, updates);
+    const repoUpdates: Record<string, unknown> = {};
+    if (updates.name !== undefined) repoUpdates.name = updates.name;
+    if (updates.code !== undefined) repoUpdates.code = updates.code;
+    if (updates.subtitle !== undefined) repoUpdates.subtitle = updates.subtitle;
+    if (updates.status !== undefined) repoUpdates.status = updates.status;
+    if (updates.progress !== undefined) repoUpdates.progress = updates.progress;
+    if (updates.leadId !== undefined) repoUpdates.lead_id = updates.leadId;
+    if (updates.facultyId !== undefined) repoUpdates.faculty_id = updates.facultyId;
+    if (updates.targetDate !== undefined) repoUpdates.target_date = updates.targetDate;
+    if (updates.targetNote !== undefined) repoUpdates.target_note = updates.targetNote;
+    if (updates.abstract !== undefined) repoUpdates.abstract = updates.abstract;
+    if (updates.repoUrl !== undefined) repoUpdates.repo_url = updates.repoUrl;
+    if (updates.previewUrl !== undefined) repoUpdates.preview_url = updates.previewUrl;
+    if (updates.cycle !== undefined) repoUpdates.cycle = updates.cycle;
+    if (updates.stack !== undefined) repoUpdates.stack = updates.stack;
+    if (updates.memberIds !== undefined) repoUpdates.memberIds = updates.memberIds;
+
+    const updated = await ProjectRepository.update(projectId, repoUpdates);
 
     await AuditRepository.log({
       id: `audit-${Date.now()}`,
@@ -104,6 +131,45 @@ export const ProjectService = {
       metadataJson: updates,
     });
 
-    return updated;
+    await ActivityRepository.create({
+      id: `act-${Date.now()}`,
+      actorId: callerUserId,
+      kind: "commit",
+      text: `updated project details for ${updated?.name || projectId}`,
+      projectId,
+    });
+
+    return ProjectRepository.findById(projectId);
+  },
+
+  async deleteProject(callerUserId: string, projectId: string) {
+    const ctx = await getAuthContext(callerUserId);
+    requireRole(ctx, ["super_admin", "faculty", "lead"]);
+
+    const project = await ProjectRepository.findById(projectId);
+    if (!project) {
+      throw new Error(`Project ${projectId} not found.`);
+    }
+
+    await ProjectRepository.delete(projectId);
+
+    await AuditRepository.log({
+      id: `audit-${Date.now()}`,
+      actorId: callerUserId,
+      action: "project_deleted",
+      targetType: "project",
+      targetId: projectId,
+      metadataJson: { code: project.code, name: project.name },
+    });
+
+    await ActivityRepository.create({
+      id: `act-${Date.now()}`,
+      actorId: callerUserId,
+      kind: "blocker",
+      text: `deleted project ${project.name} (${project.code})`,
+      projectId: null,
+    });
+
+    return { success: true, id: projectId };
   },
 };

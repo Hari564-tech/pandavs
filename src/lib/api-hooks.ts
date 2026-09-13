@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   completeUploadFn,
   createProjectFn,
+  updateProjectFn,
+  deleteProjectFn,
   createTaskFn,
   getDashboardAnalyticsFn,
   getDocumentDownloadUrlFn,
@@ -161,6 +163,32 @@ export function useCreateProjectMutation() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["dashboard_analytics"] });
+    },
+  });
+}
+
+export function useUpdateProjectMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Parameters<typeof updateProjectFn>[0]["data"]) => updateProjectFn({ data }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      if (vars?.projectId) {
+        qc.invalidateQueries({ queryKey: ["projects", vars.projectId] });
+      }
+      qc.invalidateQueries({ queryKey: ["dashboard_analytics"] });
+    },
+  });
+}
+
+export function useDeleteProjectMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Parameters<typeof deleteProjectFn>[0]["data"]) => deleteProjectFn({ data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["dashboard_analytics"] });
+      qc.invalidateQueries({ queryKey: ["tasks"] });
     },
   });
 }

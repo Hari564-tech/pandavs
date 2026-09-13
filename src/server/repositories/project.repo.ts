@@ -123,23 +123,59 @@ export const ProjectRepository = {
     return created;
   },
 
-  async update(id: string, updates: Partial<ProjectsTable> & { stack?: { name: string; note: string }[] }) {
+  async update(
+    id: string,
+    updates: Partial<ProjectsTable> & {
+      stack?: { name: string; note: string }[];
+      memberIds?: string[];
+    },
+  ) {
     const db = getDb();
     const updateValues: Record<string, unknown> = {
-      ...updates,
       updated_at: new Date(),
     };
+    for (const [key, val] of Object.entries(updates)) {
+      if (key !== "stack" && key !== "memberIds" && val !== undefined) {
+        updateValues[key] = val;
+      }
+    }
     if (updates.stack) {
       updateValues.stack_json = JSON.stringify(updates.stack);
-      delete updateValues.stack;
     }
 
-    return db
+    const updated = await db
       .updateTable("projects")
       .set(updateValues)
       .where("id", "=", id)
       .returningAll()
       .executeTakeFirst();
+
+    if (updates.lead_id || updates.faculty_id || updates.memberIds) {
+      const proj = await db.selectFrom("projects").select(["lead_id", "faculty_id"]).where("id", "=", id).executeTakeFirst();
+      if (proj) {
+        const leadId = updates.lead_id || proj.lead_id;
+        const facultyId = updates.faculty_id || proj.faculty_id;
+        const allMemberIds = Array.from(new Set([leadId, facultyId, ...(updates.memberIds ?? [])]));
+        for (const uId of allMemberIds) {
+          await db
+            .insertInto("project_members")
+            .values({
+              project_id: id,
+              user_id: uId,
+              member_role: uId === leadId ? "lead" : uId === facultyId ? "faculty" : "member",
+            })
+            .onConflict((oc) => oc.columns(["project_id", "user_id"]).doNothing())
+            .execute();
+        }
+      }
+    }
+
+    return updated;
+  },
+
+  async delete(id: string) {
+    const db = getDb();
+    return db.deleteFrom("projects").where("id", "=", id).executeTakeFirst();
   },
 
   async getMilestones(projectId: string) {
