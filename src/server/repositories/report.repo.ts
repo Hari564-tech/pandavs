@@ -1,5 +1,5 @@
 import { getDb } from "@/server/db/kysely";
-import type { DailyReportsTable, ReportStatusType } from "@/server/db/types";
+import type { ReportStatusType } from "@/server/db/types";
 
 export const ReportRepository = {
   async list(filter?: {

@@ -59,7 +59,7 @@ function formatMessageTime(at: string, createdAt?: string): string {
 export function ChatPage() {
   const { data: channels = [], isLoading: isChannelsLoading } = useChannelsQuery();
   const [selectedChannelId, setSelectedChannelId] = useState<string>("");
-  const activeChannelId = selectedChannelId || channels[0]?.id || "team-portal";
+  const activeChannelId = selectedChannelId || channels[0]?.id || "general";
 
   const { data: messages = [], isLoading: isMessagesLoading } = useMessagesQuery(activeChannelId);
   const { data: team = [] } = useTeamQuery();
@@ -75,9 +75,9 @@ export function ChatPage() {
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const currentChannel = channels.find((c) => c.id === activeChannelId) ?? {
-    id: "team-portal",
-    name: "team-portal",
+  const currentChannel = channels.find((c) => c.id === activeChannelId) ?? channels[0] ?? {
+    id: activeChannelId,
+    name: activeChannelId,
     topic: "Engineering discussions & blockers",
   };
 
@@ -159,9 +159,10 @@ export function ChatPage() {
     const body = draft.trim();
     setDraft("");
 
+    const channelId = activeChannelId || channels[0]?.id || "general";
     try {
       await sendMessage.mutateAsync({
-        channelId: activeChannelId,
+        channelId,
         body,
       });
     } catch (err: unknown) {

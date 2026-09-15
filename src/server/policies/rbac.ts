@@ -81,7 +81,7 @@ export async function requireProjectAccess(ctx: AuthContext, projectId: string):
 /**
  * Verifies permission to edit/manage project details.
  */
-export async function canManageProject(ctx: AuthContext, projectId: string): Promise<boolean> {
+export async function canManageProject(ctx: AuthContext, _projectId: string): Promise<boolean> {
   if (ctx.role === "super_admin" || ctx.role === "faculty" || ctx.role === "lead") return true;
   return false;
 }
@@ -178,5 +178,43 @@ export function requireUserAdmin(ctx: AuthContext): void {
 export function requireAuditView(ctx: AuthContext): void {
   if (ctx.role !== "super_admin") {
     throw new ForbiddenError("Access restricted: Audit logs are reserved for Super Administrators");
+  }
+}
+
+/**
+ * Verifies permission to clear chat messages.
+ * Only Super Admin can clear messages for everyone.
+ */
+export function requireCanClearChat(ctx: AuthContext): void {
+  if (ctx.role !== "super_admin") {
+    throw new ForbiddenError("Only Super Administrators can clear chat messages");
+  }
+}
+
+/**
+ * Verifies permission to delete a project document.
+ * Allowed for Super Admin, Faculty, and Team Lead.
+ */
+export function requireCanDeleteDocument(ctx: AuthContext): void {
+  requireRole(ctx, ["super_admin", "faculty", "lead"]);
+}
+
+/**
+ * Verifies permission to add or remove members from a project.
+ * Super Admin and Faculty have global authority.
+ * Lead can manage members for projects where they are the designated lead.
+ */
+export async function requireCanManageProjectMembers(ctx: AuthContext, projectId: string): Promise<void> {
+  if (ctx.role === "super_admin" || ctx.role === "faculty") return;
+
+  const db = getDb();
+  const project = await db
+    .selectFrom("projects")
+    .select(["lead_id"])
+    .where("id", "=", projectId)
+    .executeTakeFirst();
+
+  if (!project || project.lead_id !== ctx.userId) {
+    throw new ForbiddenError("Only the project team lead, faculty guide, or super admin can manage members for this project.");
   }
 }

@@ -136,7 +136,7 @@ function CommandCenter() {
                       toast.success("Batch reminders queued", {
                         description: `Sent notifications to ${ids.length} members pending reports.`,
                       });
-                    } catch (err) {
+                    } catch {
                       toast.error("Failed to send reminders");
                     }
                   } else {
@@ -317,7 +317,7 @@ function CommandCenter() {
                         await pingMember.mutateAsync(p.id);
                         ping(p.id);
                         toast.success(already ? "Nudged again" : "Reminder sent", { description: p.name });
-                      } catch (err) {
+                      } catch {
                         toast.error("Failed to send reminder");
                       }
                     }}
@@ -339,7 +339,7 @@ function CommandCenter() {
                 try {
                   await pingAllPending.mutateAsync(ids);
                   toast.success(`Reminded all ${ids.length} unfiled members via in-app notification`);
-                } catch (err) {
+                } catch {
                   toast.error("Failed to send reminders");
                 }
               } else {

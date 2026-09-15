@@ -22,7 +22,6 @@ export async function seedDatabase() {
 
   // Clean up legacy mock data that does not belong to the real cohort or real projects
   const validPeopleIds = PEOPLE.map((p) => p.id);
-  const validProjectIds = PROJECTS.map((pr) => pr.id);
 
   try {
     console.log("[seed] Cleaning up legacy mock records...");
@@ -355,11 +354,17 @@ export async function seedDatabase() {
 
   // 7. Seed Channels & Messages
   for (const c of CHANNELS) {
+    const proj = await db
+      .selectFrom("projects")
+      .select(["id"])
+      .where("id", "=", c.id)
+      .executeTakeFirst();
+
     await db
       .insertInto("channels")
       .values({
         id: c.id,
-        project_id: c.id === "general" || c.id === "announcements" || c.id === "helpdesk" ? null : c.id,
+        project_id: proj ? c.id : null,
         name: c.name,
         topic: c.topic,
       })

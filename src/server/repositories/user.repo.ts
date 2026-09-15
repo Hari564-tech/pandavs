@@ -1,5 +1,5 @@
 import { getDb } from "@/server/db/kysely";
-import type { ProfilesTable, RoleType, UserSettingsTable } from "@/server/db/types";
+import type { RoleType, UserSettingsTable } from "@/server/db/types";
 
 export const UserRepository = {
   async findById(userId: string) {

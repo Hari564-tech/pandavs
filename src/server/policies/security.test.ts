@@ -6,6 +6,9 @@ import {
   requireCanReviewReport,
   requireCanManageTask,
   requireCanUpdateTask,
+  requireCanClearChat,
+  requireCanDeleteDocument,
+  requireCanManageProjectMembers,
 } from "./rbac.ts";
 import { ForbiddenError } from "../errors/index.ts";
 import { PresignUploadSchema, SubmitDailyReportSchema } from "../schemas/index.ts";
@@ -36,6 +39,37 @@ test.before(async () => {
         email: "lead.one@rvit.ac.in",
         emailVerified: true,
       },
+      {
+        id: "superadmin-sec",
+        name: "Admin Sec",
+        email: "admin.sec@rvit.ac.in",
+        emailVerified: true,
+      },
+      {
+        id: "lead-sec",
+        name: "Lead Sec",
+        email: "lead.sec@rvit.ac.in",
+        emailVerified: true,
+      },
+      {
+        id: "member-sec",
+        name: "Member Sec",
+        email: "member.sec@rvit.ac.in",
+        emailVerified: true,
+      },
+    ])
+    .onConflict((oc) => oc.column("id").doNothing())
+    .execute();
+
+  await db
+    .insertInto("profiles")
+    .values([
+      { id: "p-lead-self", user_id: "lead-self-author", name: "Lead Author", short: "LA", email: "lead.author@rvit.ac.in", role: "lead", title: "Lead", dept: "CSE", presence: "offline" },
+      { id: "p-user-target", user_id: "user-target", name: "Target Member", short: "TM", email: "target.member@rvit.ac.in", role: "member", title: "Member", dept: "CSE", presence: "offline" },
+      { id: "p-lead-1", user_id: "lead-1", name: "Lead One", short: "L1", email: "lead.one@rvit.ac.in", role: "lead", title: "Lead", dept: "CSE", presence: "offline" },
+      { id: "p-superadmin-sec", user_id: "superadmin-sec", name: "Admin Sec", short: "AS", email: "admin.sec@rvit.ac.in", role: "super_admin", title: "Admin", dept: "IT", presence: "offline" },
+      { id: "p-lead-sec", user_id: "lead-sec", name: "Lead Sec", short: "LS", email: "lead.sec@rvit.ac.in", role: "lead", title: "Lead", dept: "ECE", presence: "offline" },
+      { id: "p-member-sec", user_id: "member-sec", name: "Member Sec", short: "MS", email: "member.sec@rvit.ac.in", role: "member", title: "Member", dept: "ECE", presence: "offline" },
     ])
     .onConflict((oc) => oc.column("id").doNothing())
     .execute();
@@ -94,6 +128,28 @@ test.before(async () => {
       progress: 0,
       due_at: "2026-09-18",
       due_label: "Sep 18",
+    })
+    .onConflict((oc) => oc.column("id").doNothing())
+    .execute();
+
+  await db
+    .insertInto("channels")
+    .values({
+      id: "sec-channel",
+      name: "sec-channel",
+      topic: "Security testing channel",
+    })
+    .onConflict((oc) => oc.column("id").doNothing())
+    .execute();
+
+  await db
+    .insertInto("documents")
+    .values({
+      id: "doc-sec-test",
+      project_id: "proj-test",
+      name: "Security Spec Document.pdf",
+      kind: "trd",
+      created_by: "lead-1",
     })
     .onConflict((oc) => oc.column("id").doNothing())
     .execute();
@@ -239,3 +295,76 @@ test("Security - Daily report validation rejects forged hours or invalid schemas
     });
   });
 });
+
+test("Security - Only Super Admin can clear chat messages", () => {
+  const memberCtx = { userId: "member-sec", role: "member" as const, profileId: "p-member-sec" };
+  const leadCtx = { userId: "lead-sec", role: "lead" as const, profileId: "p-lead-sec" };
+  const adminCtx = { userId: "superadmin-sec", role: "super_admin" as const, profileId: "p-superadmin-sec" };
+
+  // Member fails
+  assert.throws(
+    () => requireCanClearChat(memberCtx),
+    (err: unknown) => err instanceof ForbiddenError,
+  );
+
+  // Lead fails
+  assert.throws(
+    () => requireCanClearChat(leadCtx),
+    (err: unknown) => err instanceof ForbiddenError,
+  );
+
+  // Super Admin succeeds
+  assert.doesNotThrow(() => requireCanClearChat(adminCtx));
+});
+
+test("Security - Project member management enforces lead / faculty / admin authority", async () => {
+  const memberCtx = { userId: "member-sec", role: "member" as const, profileId: "p-member-sec" };
+  const nonLeadCtx = { userId: "lead-sec", role: "lead" as const, profileId: "p-lead-sec" };
+  const designatedLeadCtx = { userId: "lead-1", role: "lead" as const, profileId: "p-lead-1" };
+  const adminCtx = { userId: "superadmin-sec", role: "super_admin" as const, profileId: "p-superadmin-sec" };
+
+  // Regular member cannot manage members
+  await assert.rejects(
+    async () => {
+      await requireCanManageProjectMembers(memberCtx, "proj-test");
+    },
+    (err: unknown) => err instanceof ForbiddenError,
+  );
+
+  // Non-designated lead cannot manage members of another project
+  await assert.rejects(
+    async () => {
+      await requireCanManageProjectMembers(nonLeadCtx, "proj-test");
+    },
+    (err: unknown) => err instanceof ForbiddenError,
+  );
+
+  // Designated lead of the project succeeds
+  await assert.doesNotReject(async () => {
+    await requireCanManageProjectMembers(designatedLeadCtx, "proj-test");
+  });
+
+  // Super Admin succeeds globally
+  await assert.doesNotReject(async () => {
+    await requireCanManageProjectMembers(adminCtx, "proj-test");
+  });
+});
+
+test("Security - Document deletion allows lead/faculty/super_admin and rejects regular member", () => {
+  const memberCtx = { userId: "member-sec", role: "member" as const, profileId: "p-member-sec" };
+  const leadCtx = { userId: "lead-1", role: "lead" as const, profileId: "p-lead-1" };
+  const adminCtx = { userId: "superadmin-sec", role: "super_admin" as const, profileId: "p-superadmin-sec" };
+
+  // Member fails
+  assert.throws(
+    () => requireCanDeleteDocument(memberCtx),
+    (err: unknown) => err instanceof ForbiddenError,
+  );
+
+  // Lead succeeds
+  assert.doesNotThrow(() => requireCanDeleteDocument(leadCtx));
+
+  // Super Admin succeeds
+  assert.doesNotThrow(() => requireCanDeleteDocument(adminCtx));
+});
+

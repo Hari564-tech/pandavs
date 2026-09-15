@@ -26,7 +26,7 @@ export const Route = createFileRoute("/reports")({ component: ReportsPage });
 
 export function ReportsPage() {
   const { data: meData } = useMeQuery();
-  const { data: reports = [], isLoading, refetch } = useReportsQuery();
+  const { data: reports = [] } = useReportsQuery();
   const { data: projects = [] } = useProjectsQuery();
   const { data: team = [] } = useTeamQuery();
 

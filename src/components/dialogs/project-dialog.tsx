@@ -86,7 +86,7 @@ export function ProjectDialog() {
       setCycle("Sprint 01");
       setAbstract("");
     }
-  }, [editProjectData, open]);
+  }, [editProjectData, open, leads, facultyList, team]);
 
   const isPending = createProject.isPending || updateProject.isPending;
 

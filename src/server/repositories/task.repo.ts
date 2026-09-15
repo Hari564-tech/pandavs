@@ -1,5 +1,5 @@
 import { getDb } from "@/server/db/kysely";
-import type { TaskPriorityType, TaskStatusType, TasksTable } from "@/server/db/types";
+import type { TaskPriorityType, TaskStatusType } from "@/server/db/types";
 
 export const TaskRepository = {
   async list(filter?: {

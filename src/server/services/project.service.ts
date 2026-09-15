@@ -1,9 +1,8 @@
 import { ProjectRepository } from "@/server/repositories/project.repo";
 import { AuditRepository } from "@/server/repositories/audit.repo";
 import { ActivityRepository } from "@/server/repositories/activity.repo";
-import { getAuthContext, requireRole, requireProjectAccess } from "@/server/policies/rbac";
-import { getDb } from "@/server/db/kysely";
-import { ForbiddenError, ValidationError, NotFoundError } from "@/server/errors";
+import { getAuthContext, requireRole, requireProjectAccess, requireCanManageProjectMembers } from "@/server/policies/rbac";
+import { ValidationError } from "@/server/errors";
 import type { ProjectStatusType } from "@/server/db/types";
 
 export const ProjectService = {
@@ -42,7 +41,7 @@ export const ProjectService = {
     requireRole(ctx, ["super_admin", "faculty", "lead"]);
 
     const id = data.code.toLowerCase().replace(/[^a-z0-9]/g, "-");
-    const created = await ProjectRepository.create({
+    await ProjectRepository.create({
       id,
       code: data.code,
       name: data.name,
@@ -181,17 +180,7 @@ export const ProjectService = {
     data: { userId: string; role?: "lead" | "faculty" | "member" },
   ) {
     const ctx = await getAuthContext(callerUserId);
-    if (ctx.role !== "super_admin" && ctx.role !== "faculty") {
-      const db = getDb();
-      const project = await db
-        .selectFrom("projects")
-        .select(["lead_id"])
-        .where("id", "=", projectId)
-        .executeTakeFirst();
-      if (!project || project.lead_id !== callerUserId) {
-        throw new ForbiddenError("Only the project team lead, faculty guide, or super admin can add members to this project.");
-      }
-    }
+    await requireCanManageProjectMembers(ctx, projectId);
 
     const updated = await ProjectRepository.addMember(projectId, data.userId, data.role ?? "member");
 
@@ -217,17 +206,7 @@ export const ProjectService = {
 
   async removeMember(callerUserId: string, projectId: string, userId: string) {
     const ctx = await getAuthContext(callerUserId);
-    if (ctx.role !== "super_admin" && ctx.role !== "faculty") {
-      const db = getDb();
-      const project = await db
-        .selectFrom("projects")
-        .select(["lead_id"])
-        .where("id", "=", projectId)
-        .executeTakeFirst();
-      if (!project || project.lead_id !== callerUserId) {
-        throw new ForbiddenError("Only the project team lead, faculty guide, or super admin can remove members from this project.");
-      }
-    }
+    await requireCanManageProjectMembers(ctx, projectId);
 
     const project = await ProjectRepository.findById(projectId);
     if (project && (project.leadId === userId || project.facultyId === userId)) {

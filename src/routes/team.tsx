@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useTeamQuery, useProjectsQuery, useTasksQuery, usePingMemberMutation, useMeQuery } from "@/lib/api-hooks";
 import { useHub } from "@/lib/store";
-import type { Person, Role } from "@/lib/types";
+import type { Person } from "@/lib/types";
 
 export const Route = createFileRoute("/team")({ component: TeamPage });
 
@@ -133,7 +133,7 @@ export function TeamPage() {
                           try {
                             await pingMember.mutateAsync(p.id);
                             toast.success(`Reminder sent to ${p.name}`);
-                          } catch (err) {
+                          } catch {
                             toast.error("Failed to send reminder");
                           }
                         }}

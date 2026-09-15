@@ -13,7 +13,6 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { PersonAvatar } from "@/components/person-avatar";
 import { signOut } from "@/lib/auth/client";
-import { PEOPLE } from "@/lib/seed";
 import { useHub } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import {
@@ -51,7 +50,6 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
   const setReport = useHub((s) => s.setReportDialog);
   const setProject = useHub((s) => s.setProjectDialog);
   const setProfileDialog = useHub((s) => s.setProfileDialog);
-  const currentUserId = useHub((s) => s.currentUserId);
   const { user: authUser } = useCurrentUserState();
 
   const { data: serverNotifs = [] } = useNotificationsQuery();

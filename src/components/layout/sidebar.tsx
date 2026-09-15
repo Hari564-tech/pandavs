@@ -120,7 +120,6 @@ export function Sidebar({
   onNavigate?: () => void;
   className?: string;
 }) {
-  const userId = useHub((s) => s.currentUserId);
   const toggle = useHub((s) => s.toggleSidebar);
   const setProfileDialog = useHub((s) => s.setProfileDialog);
   const { data: meData } = useMeQuery();

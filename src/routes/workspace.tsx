@@ -54,7 +54,7 @@ function Workspace() {
     return undefined;
   };
 
-  const { data: reports = [], isLoading: isReportsLoading } = useReportsQuery({
+  const { data: reports = [] } = useReportsQuery({
     authorId: currentUserId,
   });
 

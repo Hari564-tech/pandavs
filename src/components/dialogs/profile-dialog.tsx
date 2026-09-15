@@ -33,7 +33,6 @@ import {
   useMeQuery,
   useTeamQuery,
   useUpdateProfileMutation,
-  usePresignAvatarUploadMutation,
   useUploadAvatarMutation,
   usePingMemberMutation,
 } from "@/lib/api-hooks";
@@ -46,7 +45,6 @@ export function ProfileDialog() {
   const { data: meData } = useMeQuery();
   const { data: team = [] } = useTeamQuery();
   const updateProfile = useUpdateProfileMutation();
-  const presignAvatar = usePresignAvatarUploadMutation();
   const uploadAvatar = useUploadAvatarMutation();
   const pingMember = usePingMemberMutation();
 
@@ -145,7 +143,7 @@ export function ProfileDialog() {
         }
       };
       reader.readAsDataURL(file);
-    } catch (err: unknown) {
+    } catch {
       setUploadingAvatar(false);
       toast.error("Failed to read image file");
     }
@@ -320,7 +318,7 @@ export function ProfileDialog() {
                     try {
                       await pingMember.mutateAsync(profile.user_id);
                       toast.success(`Reminder notification sent to ${profile.name}`);
-                    } catch (err) {
+                    } catch {
                       toast.error("Failed to send reminder");
                     }
                   }}

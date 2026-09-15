@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Loader2, Bell } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { PersonAvatar } from "@/components/person-avatar";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -168,7 +168,7 @@ function ReviewsPage() {
               try {
                 await pingAllPending.mutateAsync(COMPLIANCE_TODAY.pending);
                 toast.success(`Sent reminders to all ${COMPLIANCE_TODAY.pending.length} unfiled members`);
-              } catch (err) {
+              } catch {
                 toast.error("Failed to send reminders");
               }
             }}
@@ -190,7 +190,7 @@ function ReviewsPage() {
                   try {
                     await pingMember.mutateAsync(id);
                     toast.success(`EOD reminder sent to ${p.name}`);
-                  } catch (err) {
+                  } catch {
                     toast.error(`Failed to send reminder to ${p.name}`);
                   }
                 }}

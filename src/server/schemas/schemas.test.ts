@@ -164,3 +164,31 @@ test("Schema - CreateUserSchema and ResetUserPasswordSchema validation", () => {
   });
 });
 
+test("Schema - CreateTaskSchema validation", () => {
+  const validTask = {
+    code: "TSK-101",
+    title: "Implement database audit logs",
+    projectId: "team-portal",
+    assigneeId: "u_456",
+    priority: "high" as const,
+    dueAt: "2026-09-20",
+    dueLabel: "Target Sep 20",
+    subtasks: [{ title: "Create migration" }, { title: "Wire service" }],
+  };
+
+  assert.doesNotThrow(() => {
+    CreateTaskSchema.parse(validTask);
+  });
+
+  // Empty title
+  assert.throws(() => {
+    CreateTaskSchema.parse({ ...validTask, title: "" });
+  });
+
+  // Invalid priority
+  assert.throws(() => {
+    CreateTaskSchema.parse({ ...validTask, priority: "invalid_priority" });
+  });
+});
+
+

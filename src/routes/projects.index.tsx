@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Plus, Loader2, Github, Edit3, Trash2, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ import type { Person } from "@/lib/types";
 export const Route = createFileRoute("/projects/")({ component: ProjectsPage });
 
 function ProjectsPage() {
+  const navigate = useNavigate();
   const { data: projects = [], isLoading, isError, error, refetch } = useProjectsQuery();
   const { data: team = [] } = useTeamQuery();
   const { data: meData } = useMeQuery();
@@ -116,7 +117,11 @@ function ProjectsPage() {
             const lead = getPerson(p.leadId);
             const faculty = getPerson(p.facultyId);
             return (
-              <Link key={p.id} to="/projects/$projectId" params={{ projectId: p.id }} className="block">
+              <div
+                key={p.id}
+                onClick={() => navigate({ to: "/projects/$projectId", params: { projectId: p.id } })}
+                className="block cursor-pointer text-left"
+              >
                 <Card className="flex h-full flex-col p-4 transition-shadow hover:shadow-md relative group">
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2">
@@ -154,7 +159,7 @@ function ProjectsPage() {
                       </div>
                     )}
                   </div>
-                  <h2 className="font-display text-base font-semibold">{p.name}</h2>
+                  <h2 className="font-display text-base font-semibold group-hover:text-accent transition-colors">{p.name}</h2>
                   <p className="mt-1 line-clamp-2 text-sm text-muted">{p.abstract}</p>
 
                   <div className="mt-3">
@@ -207,7 +212,7 @@ function ProjectsPage() {
                     </div>
                   </div>
                 </Card>
-              </Link>
+              </div>
             );
           })}
         </div>

@@ -66,7 +66,6 @@ export const AnalyticsRepository = {
       .select(["report_date", "hours"])
       .execute();
 
-    const days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
     // Aggregate by day of week or date
     const dateMap = new Map<string, number>();
     for (const r of reports) {

@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ExternalLink, FileText, Plus, Terminal, Loader2, Github, Trash2, Edit3, UserPlus } from "lucide-react";
+import { ExternalLink, FileText, Plus, Loader2, Github, Trash2, Edit3, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { DOCUMENTS, MILESTONES, PEOPLE } from "@/lib/seed";
+import { MILESTONES, PEOPLE } from "@/lib/seed";
 import { useHub } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import {
