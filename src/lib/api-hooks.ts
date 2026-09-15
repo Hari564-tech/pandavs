@@ -168,6 +168,7 @@ export function useCreateProjectMutation() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["dashboard_analytics"] });
+      qc.invalidateQueries({ queryKey: ["channels"] });
     },
   });
 }

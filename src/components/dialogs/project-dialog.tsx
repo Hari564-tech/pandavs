@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useMemo, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Loader2, Github, ExternalLink, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -53,10 +53,12 @@ export function ProjectDialog() {
   const [cycle, setCycle] = useState("Sprint 01");
   const [abstract, setAbstract] = useState("");
 
-  const leads = team.filter((u) => u.role === "lead" || u.role === "super_admin");
-  const facultyList = team.filter((u) => u.role === "faculty" || u.role === "super_admin");
+  const leads = useMemo(() => team.filter((u) => u.role === "lead" || u.role === "super_admin"), [team]);
+  const facultyList = useMemo(() => team.filter((u) => u.role === "faculty" || u.role === "super_admin"), [team]);
 
   useEffect(() => {
+    if (!open) return;
+
     if (editProjectData) {
       setName(editProjectData.name || "");
       setCode(editProjectData.code || "");
@@ -86,7 +88,18 @@ export function ProjectDialog() {
       setCycle("Sprint 01");
       setAbstract("");
     }
-  }, [editProjectData, open, leads, facultyList, team]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editProjectData]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (!leadId && leads.length > 0) {
+      setLeadId(leads[0].user_id);
+    }
+    if (!facultyId && facultyList.length > 0) {
+      setFacultyId(facultyList[0].user_id);
+    }
+  }, [open, leadId, facultyId, leads, facultyList]);
 
   const isPending = createProject.isPending || updateProject.isPending;
 
@@ -98,8 +111,13 @@ export function ProjectDialog() {
     }
 
     const projCode = (code.trim() || (isEditing ? editProjectData.code : `PROJ-${Math.floor(Math.random() * 80 + 10)}`)).toUpperCase();
-    const effectiveLeadId = leadId || leads[0]?.user_id || "vardan";
-    const effectiveFacultyId = facultyId || facultyList[0]?.user_id || "shaik";
+    const effectiveLeadId = leadId || leads[0]?.user_id || team[0]?.user_id || "";
+    const effectiveFacultyId = facultyId || facultyList[0]?.user_id || team[0]?.user_id || "";
+
+    if (!effectiveLeadId || !effectiveFacultyId) {
+      toast.error("Please select a project lead and faculty PM");
+      return;
+    }
 
     try {
       if (isEditing) {
@@ -127,12 +145,15 @@ export function ProjectDialog() {
           code: projCode,
           name: name.trim(),
           subtitle: subtitle.trim() || "Newly registered capstone",
+          status,
+          progress: Number(progress),
+          cycle: cycle.trim() || "Sprint 01",
           leadId: effectiveLeadId,
           facultyId: effectiveFacultyId,
           targetDate: targetDate.trim() || "2026-11-20",
           targetNote: targetNote.trim() || "Sprint Kickoff",
           abstract: abstract.trim() || "Proposal under faculty review.",
-          repoUrl: repoUrl.trim() || `Hari564-tech/${projCode.toLowerCase()}`,
+          repoUrl: repoUrl.trim() || `https://github.com/Hari564-tech/${projCode.toLowerCase()}`,
           previewUrl: previewUrl.trim() || undefined,
         });
         toast.success("Project registered successfully", { description: `${projCode} · ${name}` });

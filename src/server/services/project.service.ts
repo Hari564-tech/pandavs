@@ -41,6 +41,10 @@ export const ProjectService = {
     requireRole(ctx, ["super_admin", "faculty", "lead"]);
 
     const id = data.code.toLowerCase().replace(/[^a-z0-9]/g, "-");
+    const existing = await ProjectRepository.findById(id);
+    if (existing) {
+      throw new ValidationError(`A project with code '${data.code}' already exists. Please choose a different code.`);
+    }
     await ProjectRepository.create({
       id,
       code: data.code,

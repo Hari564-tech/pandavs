@@ -10,7 +10,7 @@ import { CalendarService } from "@/server/services/calendar.service";
 import { NotificationService } from "@/server/services/notification.service";
 import { AnalyticsService } from "@/server/services/analytics.service";
 import { AdminService } from "@/server/services/admin.service";
-import type { RoleType, TaskPriorityType, TaskStatusType } from "@/server/db/types";
+import type { RoleType, TaskPriorityType, TaskStatusType, ProjectStatusType } from "@/server/db/types";
 
 // User & Team
 export const getMeFn = createServerFn({ method: "GET" })
@@ -141,6 +141,9 @@ export const createProjectFn = createServerFn({ method: "POST" })
       code: string;
       name: string;
       subtitle?: string;
+      status?: ProjectStatusType;
+      progress?: number;
+      cycle?: string;
       leadId: string;
       facultyId: string;
       targetDate?: string;
@@ -148,6 +151,7 @@ export const createProjectFn = createServerFn({ method: "POST" })
       abstract?: string;
       repoUrl?: string;
       previewUrl?: string;
+      stack?: { name: string; note: string }[];
     }) => d,
   )
   .handler(async ({ data, context }) => {

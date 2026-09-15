@@ -120,6 +120,18 @@ export const ProjectRepository = {
         .execute();
     }
 
+    // Auto-create a dedicated channel for this project
+    await db
+      .insertInto("channels")
+      .values({
+        id: data.id,
+        project_id: data.id,
+        name: data.code.toLowerCase(),
+        topic: `${data.name} team discussions & updates`,
+      })
+      .onConflict((oc) => oc.column("id").doNothing())
+      .execute();
+
     return created;
   },
 
