@@ -34,6 +34,8 @@ import {
   sendReminderFn,
   sendMessageFn,
   submitReportFn,
+  getDailyReportFn,
+  updateDailyReportFn,
   toggleSubtaskFn,
   updateProfileFn,
   updateTaskStatusFn,
@@ -278,11 +280,24 @@ export function useReportsQuery(filter?: {
   authorId?: string;
   projectId?: string;
   date?: string;
+  startDate?: string;
+  endDate?: string;
   status?: "draft" | "submitted" | "approved" | "revision";
+  limit?: number;
+  offset?: number;
 }) {
   return useQuery({
     queryKey: ["reports", filter],
     queryFn: () => listReportsFn({ data: filter }),
+    staleTime: 10000,
+  });
+}
+
+export function useDailyReportQuery(date: string, projectId?: string, authorId?: string, enabled = true) {
+  return useQuery({
+    queryKey: ["daily_report", { date, projectId, authorId }],
+    queryFn: () => getDailyReportFn({ data: { date, projectId, authorId } }),
+    enabled: enabled && Boolean(date),
     staleTime: 10000,
   });
 }
@@ -293,6 +308,19 @@ export function useSubmitReportMutation() {
     mutationFn: (data: Parameters<typeof submitReportFn>[0]["data"]) => submitReportFn({ data }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["reports"] });
+      qc.invalidateQueries({ queryKey: ["daily_report"] });
+      qc.invalidateQueries({ queryKey: ["dashboard_analytics"] });
+    },
+  });
+}
+
+export function useUpdateDailyReportMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Parameters<typeof updateDailyReportFn>[0]["data"]) => updateDailyReportFn({ data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["reports"] });
+      qc.invalidateQueries({ queryKey: ["daily_report"] });
       qc.invalidateQueries({ queryKey: ["dashboard_analytics"] });
     },
   });

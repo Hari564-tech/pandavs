@@ -8,7 +8,6 @@ import { Card } from "@/components/ui/card";
 import { COMPLIANCE_TODAY, PEOPLE } from "@/lib/seed";
 import {
   useReportsQuery,
-  useReviewReportMutation,
   useTeamQuery,
   usePingMemberMutation,
   usePingAllPendingMutation,
@@ -20,9 +19,10 @@ export const Route = createFileRoute("/reviews")({ component: ReviewsPage });
 function ReviewsPage() {
   const { data: reports = [], isLoading, isError, error, refetch } = useReportsQuery();
   const { data: team = [] } = useTeamQuery();
-  const reviewMutation = useReviewReportMutation();
   const pingMember = usePingMemberMutation();
   const pingAllPending = usePingAllPendingMutation();
+
+  const queue = reports;
 
   const getPerson = (id: string): Person | undefined => {
     const fromTeam = team.find((u) => u.user_id === id);
@@ -48,31 +48,12 @@ function ReviewsPage() {
     return PEOPLE.find((p) => p.id === id);
   };
 
-  const queue = reports.filter((r) => r.status === "submitted" || r.status === "revision");
-
-  const handleReview = async (reportId: string, status: "approved" | "revision", authorName?: string) => {
-    try {
-      await reviewMutation.mutateAsync({
-        reportId,
-        status,
-        feedback: status === "approved" ? "Verified and approved by supervisor." : "Please expand details on current blockers.",
-      });
-      toast.success(status === "approved" ? "Report approved" : "Revision requested", {
-        description: authorName ? `Feedback sent to ${authorName}` : undefined,
-      });
-    } catch (err: unknown) {
-      toast.error("Review action failed", {
-        description: (err as Error)?.message || "You may not be authorized to review this report.",
-      });
-    }
-  };
-
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight">Report reviews</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight">Team Submissions & Standups</h1>
         <p className="text-sm text-muted">
-          {isLoading ? "Checking review queue..." : `${queue.length} in queue · ${COMPLIANCE_TODAY.pending.length} unfiled today.`}
+          {isLoading ? "Checking submissions..." : `${reports.length} reports logged in database · ${COMPLIANCE_TODAY.pending.length} unfiled today.`}
         </p>
       </div>
 
@@ -90,7 +71,7 @@ function ReviewsPage() {
         </div>
       ) : queue.length === 0 ? (
         <Card className="p-8 text-center text-sm text-muted">
-          No reports currently pending your evaluation. Queue is fully cleared!
+          No daily reports submitted yet. When team members submit standups, they will be logged here.
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
@@ -130,23 +111,9 @@ function ReviewsPage() {
                     PR / Link: <a href={r.pr_url} target="_blank" rel="noreferrer" className="underline">{r.pr_url}</a>
                   </p>
                 ) : null}
-                <div className="mt-3 flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="success"
-                    disabled={reviewMutation.isPending}
-                    onClick={() => handleReview(r.id, "approved", who?.name)}
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={reviewMutation.isPending}
-                    onClick={() => handleReview(r.id, "revision", who?.name)}
-                  >
-                    Request revision
-                  </Button>
+                <div className="mt-3 flex items-center justify-between border-t border-border pt-2 text-[11px] text-muted">
+                  <span>Logged in database</span>
+                  <span className="font-mono font-semibold text-success">Verified Submission</span>
                 </div>
               </Card>
             );

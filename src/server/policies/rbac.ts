@@ -164,6 +164,17 @@ export async function requireCanReviewReport(ctx: AuthContext, reportId: string)
 }
 
 /**
+ * Verifies permission to edit a daily report.
+ * Allowed only for the report author or super_admin.
+ */
+export function requireCanEditReport(ctx: AuthContext, reportAuthorId: string): void {
+  if (ctx.role === "super_admin") return;
+  if (ctx.userId !== reportAuthorId) {
+    throw new ForbiddenError("You cannot edit another member's daily report");
+  }
+}
+
+/**
  * Verifies user administration rights.
  */
 export function requireUserAdmin(ctx: AuthContext): void {

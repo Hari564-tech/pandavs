@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   SubmitDailyReportSchema,
+  UpdateDailyReportSchema,
+  DailyReportQuerySchema,
   ReviewReportSchema,
   CreateTaskSchema,
   PresignUploadSchema,
@@ -191,4 +193,35 @@ test("Schema - CreateTaskSchema validation", () => {
   });
 });
 
+test("Schema - UpdateDailyReportSchema validation", () => {
+  const validUpdate = {
+    reportId: "r-user-1-2026-09-16",
+    hours: 7.5,
+    completed: "Finished refactoring daily reports workflow",
+    progress: 90,
+  };
+  assert.doesNotThrow(() => {
+    UpdateDailyReportSchema.parse(validUpdate);
+  });
 
+  // Invalid hours
+  assert.throws(() => {
+    UpdateDailyReportSchema.parse({ reportId: "r-1", hours: 25 });
+  });
+
+  // Short completed text
+  assert.throws(() => {
+    UpdateDailyReportSchema.parse({ reportId: "r-1", completed: "no" });
+  });
+});
+
+test("Schema - DailyReportQuerySchema validation", () => {
+  assert.doesNotThrow(() => {
+    DailyReportQuerySchema.parse({ date: "2026-09-16", projectId: "team-portal" });
+  });
+
+  // Invalid date
+  assert.throws(() => {
+    DailyReportQuerySchema.parse({ date: "invalid-date" });
+  });
+});

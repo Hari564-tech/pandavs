@@ -140,6 +140,24 @@ export const SubmitDailyReportSchema = z.object({
   taskCodes: z.array(z.string()).default([]),
 });
 
+export const UpdateDailyReportSchema = z.object({
+  reportId: z.string().min(1),
+  hours: z.number().min(0).max(24).optional(),
+  completed: z.string().min(5, "Accomplishments must be at least 5 characters").max(5000).optional(),
+  next: z.string().max(5000).optional(),
+  blockers: z.string().max(2000).optional(),
+  progress: z.number().int().min(0).max(100).optional(),
+  prUrl: z.string().url("Invalid PR URL").optional().or(z.literal("")),
+  attachment: z.string().max(255).optional(),
+  taskCodes: z.array(z.string()).optional(),
+});
+
+export const DailyReportQuerySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format must be YYYY-MM-DD"),
+  projectId: z.string().min(1).optional(),
+  authorId: z.string().min(1).optional(),
+});
+
 export const ReviewReportSchema = z.object({
   reportId: z.string().min(1),
   status: z.enum(["approved", "revision"]),

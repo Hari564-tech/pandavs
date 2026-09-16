@@ -6,7 +6,11 @@ export const ReportRepository = {
     authorId?: string;
     projectId?: string;
     date?: string;
+    startDate?: string;
+    endDate?: string;
     status?: ReportStatusType;
+    limit?: number;
+    offset?: number;
   }) {
     const db = getDb();
     let query = db.selectFrom("daily_reports").selectAll().orderBy("report_date", "desc");
@@ -20,8 +24,20 @@ export const ReportRepository = {
     if (filter?.date) {
       query = query.where("report_date", "=", filter.date);
     }
+    if (filter?.startDate) {
+      query = query.where("report_date", ">=", filter.startDate);
+    }
+    if (filter?.endDate) {
+      query = query.where("report_date", "<=", filter.endDate);
+    }
     if (filter?.status) {
       query = query.where("status", "=", filter.status);
+    }
+    if (filter?.limit) {
+      query = query.limit(filter.limit);
+    }
+    if (filter?.offset) {
+      query = query.offset(filter.offset);
     }
 
     const reports = await query.execute();
@@ -93,6 +109,11 @@ export const ReportRepository = {
       .where("project_id", "=", projectId)
       .where("report_date", "=", date)
       .executeTakeFirst();
+  },
+
+  async findByAuthorAndDateWithDetails(authorId: string, projectId: string, date: string) {
+    const list = await this.list({ authorId, projectId, date });
+    return list[0] ?? null;
   },
 
   async upsert(data: {
@@ -181,6 +202,65 @@ export const ReportRepository = {
       }
 
       return reportId;
+    });
+  },
+
+  async updateReport(
+    id: string,
+    updates: {
+      hours?: number;
+      completed?: string;
+      next_steps?: string;
+      blockers?: string;
+      progress?: number;
+      pr_url?: string | null;
+      attachment?: string | null;
+      taskCodes?: string[];
+    },
+  ) {
+    const db = getDb();
+
+    return db.transaction().execute(async (tx) => {
+      const setFields: Record<string, unknown> = {
+        updated_at: new Date(),
+      };
+      if (updates.hours !== undefined) setFields.hours = updates.hours;
+      if (updates.completed !== undefined) setFields.completed = updates.completed;
+      if (updates.next_steps !== undefined) setFields.next_steps = updates.next_steps;
+      if (updates.blockers !== undefined) setFields.blockers = updates.blockers;
+      if (updates.progress !== undefined) setFields.progress = updates.progress;
+      if (updates.pr_url !== undefined) setFields.pr_url = updates.pr_url;
+      if (updates.attachment !== undefined) setFields.attachment = updates.attachment;
+
+      await tx
+        .updateTable("daily_reports")
+        .set(setFields)
+        .where("id", "=", id)
+        .execute();
+
+      if (updates.taskCodes !== undefined) {
+        await tx.deleteFrom("report_tasks").where("report_id", "=", id).execute();
+        if (updates.taskCodes.length > 0) {
+          const tasks = await tx
+            .selectFrom("tasks")
+            .select("id")
+            .where("code", "in", updates.taskCodes)
+            .execute();
+
+          for (const t of tasks) {
+            await tx
+              .insertInto("report_tasks")
+              .values({
+                report_id: id,
+                task_id: t.id,
+              })
+              .onConflict((oc) => oc.columns(["report_id", "task_id"]).doNothing())
+              .execute();
+          }
+        }
+      }
+
+      return this.findById(id);
     });
   },
 

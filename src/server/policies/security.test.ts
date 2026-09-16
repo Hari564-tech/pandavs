@@ -9,6 +9,7 @@ import {
   requireCanClearChat,
   requireCanDeleteDocument,
   requireCanManageProjectMembers,
+  requireCanEditReport,
 } from "./rbac.ts";
 import { ForbiddenError } from "../errors/index.ts";
 import { PresignUploadSchema, SubmitDailyReportSchema } from "../schemas/index.ts";
@@ -368,3 +369,93 @@ test("Security - Document deletion allows lead/faculty/super_admin and rejects r
   assert.doesNotThrow(() => requireCanDeleteDocument(adminCtx));
 });
 
+test("Security - Report edit ownership policy: author and super_admin succeed, other members rejected", () => {
+  const authorCtx = { userId: "member-author-1", role: "member" as const, profileId: "p-author" };
+  const otherMemberCtx = { userId: "member-attacker-2", role: "member" as const, profileId: "p-attacker" };
+  const adminCtx = { userId: "superadmin-sec", role: "super_admin" as const, profileId: "p-admin" };
+
+  // Other member fails
+  assert.throws(
+    () => requireCanEditReport(otherMemberCtx, authorCtx.userId),
+    (err: unknown) => err instanceof ForbiddenError,
+  );
+
+  // Author succeeds
+  assert.doesNotThrow(() => requireCanEditReport(authorCtx, authorCtx.userId));
+
+  // Super Admin succeeds
+  assert.doesNotThrow(() => requireCanEditReport(adminCtx, authorCtx.userId));
+});
+
+test("Database - Daily report submission idempotency and direct storage", async () => {
+  const db = getDb();
+  const testDate = "2026-09-16";
+  const testAuthor = "user-target";
+  const testProject = "proj-test";
+
+  // First submission
+  await db
+    .insertInto("daily_reports")
+    .values({
+      id: `r-${testAuthor}-${testDate}`,
+      author_id: testAuthor,
+      project_id: testProject,
+      report_date: testDate,
+      hours: 6.0,
+      completed: "First attempt work completed",
+      next_steps: "Next day tasks",
+      blockers: "",
+      progress: 70,
+      status: "submitted",
+      submitted_at: new Date(),
+    })
+    .onConflict((oc) =>
+      oc.columns(["author_id", "project_id", "report_date"]).doUpdateSet({
+        hours: 6.0,
+        completed: "First attempt work completed",
+        status: "submitted",
+        updated_at: new Date(),
+      }),
+    )
+    .execute();
+
+  // Second submission on same date & project (idempotency check)
+  await db
+    .insertInto("daily_reports")
+    .values({
+      id: `r-${testAuthor}-${testDate}`,
+      author_id: testAuthor,
+      project_id: testProject,
+      report_date: testDate,
+      hours: 7.5,
+      completed: "Updated work completed on repeat submit",
+      next_steps: "Next day tasks",
+      blockers: "",
+      progress: 85,
+      status: "submitted",
+      submitted_at: new Date(),
+    })
+    .onConflict((oc) =>
+      oc.columns(["author_id", "project_id", "report_date"]).doUpdateSet({
+        hours: 7.5,
+        completed: "Updated work completed on repeat submit",
+        progress: 85,
+        status: "submitted",
+        updated_at: new Date(),
+      }),
+    )
+    .execute();
+
+  // Verify only ONE report exists
+  const matching = await db
+    .selectFrom("daily_reports")
+    .selectAll()
+    .where("author_id", "=", testAuthor)
+    .where("project_id", "=", testProject)
+    .where("report_date", "=", testDate)
+    .execute();
+
+  assert.equal(matching.length, 1, "Expected exactly 1 record due to unique constraint idempotency");
+  assert.equal(Number(matching[0].hours), 7.5, "Expected updated hours to persist");
+  assert.equal(matching[0].status, "submitted", "Report status should be submitted directly without approval needed");
+});

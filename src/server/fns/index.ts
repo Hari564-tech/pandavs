@@ -261,11 +261,22 @@ export const listReportsFn = createServerFn({ method: "GET" })
       authorId?: string;
       projectId?: string;
       date?: string;
+      startDate?: string;
+      endDate?: string;
       status?: "draft" | "submitted" | "approved" | "revision";
+      limit?: number;
+      offset?: number;
     }) => filter,
   )
   .handler(async ({ data }) => {
     return ReportService.listReports(data);
+  });
+
+export const getDailyReportFn = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .validator((d: { date: string; projectId?: string; authorId?: string }) => d)
+  .handler(async ({ data, context }) => {
+    return ReportService.getDailyReport(context.userId, data);
   });
 
 export const submitReportFn = createServerFn({ method: "POST" })
@@ -285,6 +296,25 @@ export const submitReportFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     return ReportService.submitReport(context.userId, data);
+  });
+
+export const updateDailyReportFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    (d: {
+      reportId: string;
+      hours?: number;
+      completed?: string;
+      next?: string;
+      blockers?: string;
+      progress?: number;
+      prUrl?: string;
+      attachment?: string;
+      taskCodes?: string[];
+    }) => d,
+  )
+  .handler(async ({ data, context }) => {
+    return ReportService.updateReport(context.userId, data);
   });
 
 export const reviewReportFn = createServerFn({ method: "POST" })

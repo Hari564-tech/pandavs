@@ -5,16 +5,20 @@ import { ActivityRepository } from "@/server/repositories/activity.repo";
 import { AuditRepository } from "@/server/repositories/audit.repo";
 import { EmailService } from "@/server/email/resend";
 import { RealtimeService } from "@/server/realtime/supabase-realtime.ts";
-import { getAuthContext, requireProjectAccess, requireCanReviewReport } from "@/server/policies/rbac";
-import { NotFoundError } from "@/server/errors";
-import { SubmitDailyReportSchema, ReviewReportSchema } from "@/server/schemas";
+import { getAuthContext, requireProjectAccess, requireCanReviewReport, requireCanEditReport } from "@/server/policies/rbac";
+import { NotFoundError, ForbiddenError } from "@/server/errors";
+import { SubmitDailyReportSchema, UpdateDailyReportSchema, DailyReportQuerySchema, ReviewReportSchema } from "@/server/schemas";
 
 export const ReportService = {
   async listReports(filter?: {
     authorId?: string;
     projectId?: string;
     date?: string;
+    startDate?: string;
+    endDate?: string;
     status?: "draft" | "submitted" | "approved" | "revision";
+    limit?: number;
+    offset?: number;
   }) {
     return ReportRepository.list(filter);
   },
@@ -23,6 +27,76 @@ export const ReportService = {
     const report = await ReportRepository.findById(id);
     if (!report) throw new NotFoundError("Daily report");
     return report;
+  },
+
+  async getDailyReport(
+    callerUserId: string,
+    rawInput: { date: string; projectId?: string; authorId?: string },
+  ) {
+    const data = DailyReportQuerySchema.parse(rawInput);
+    const ctx = await getAuthContext(callerUserId);
+    const targetAuthorId = data.authorId || callerUserId;
+
+    if (targetAuthorId !== callerUserId && ctx.role === "member") {
+      throw new ForbiddenError("You cannot view another member's daily report");
+    }
+
+    if (data.projectId) {
+      await requireProjectAccess(ctx, data.projectId);
+      return ReportRepository.findByAuthorAndDateWithDetails(targetAuthorId, data.projectId, data.date);
+    }
+
+    const list = await ReportRepository.list({ authorId: targetAuthorId, date: data.date });
+    return list[0] ?? null;
+  },
+
+  async updateReport(
+    callerUserId: string,
+    rawInput: unknown,
+  ) {
+    const data = UpdateDailyReportSchema.parse(rawInput);
+    const ctx = await getAuthContext(callerUserId);
+    const report = await ReportRepository.findById(data.reportId);
+    if (!report) throw new NotFoundError("Daily report");
+
+    requireCanEditReport(ctx, report.authorId);
+
+    await ReportRepository.updateReport(data.reportId, {
+      hours: data.hours,
+      completed: data.completed,
+      next_steps: data.next,
+      blockers: data.blockers,
+      progress: data.progress,
+      pr_url: data.prUrl,
+      attachment: data.attachment,
+      taskCodes: data.taskCodes,
+    });
+
+    await ActivityRepository.create({
+      id: `act-${Date.now()}`,
+      actorId: callerUserId,
+      kind: "report",
+      text: `updated daily report for ${report.date}`,
+      detail: data.completed ? `${data.completed.slice(0, 80)}...` : undefined,
+      projectId: report.projectId,
+    });
+
+    await AuditRepository.log({
+      id: `audit-${Date.now()}`,
+      actorId: callerUserId,
+      action: "report_updated",
+      targetType: "report",
+      targetId: data.reportId,
+      metadataJson: { projectId: report.projectId, date: report.date },
+    });
+
+    await RealtimeService.publish({
+      channel: `project:${report.projectId}`,
+      event: "report:updated",
+      payload: { reportId: data.reportId, authorId: callerUserId, date: report.date },
+    });
+
+    return ReportRepository.findById(data.reportId);
   },
 
   async submitReport(
@@ -44,7 +118,7 @@ export const ReportService = {
       next_steps: data.next,
       blockers: data.blockers,
       progress: data.progress,
-      status: "approved",
+      status: "submitted",
       pr_url: data.prUrl,
       attachment: data.attachment,
       taskCodes: data.taskCodes,
