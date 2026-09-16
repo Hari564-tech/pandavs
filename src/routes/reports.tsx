@@ -101,7 +101,7 @@ export function ReportsPage() {
         prUrl: pr.trim() || undefined,
         taskCodes: ["PROJ-204", "PROJ-218"],
       });
-      toast.success("Report filed successfully", { description: "Faculty guide notified for sign-off." });
+      toast.success("Report added successfully", { description: "Daily report logged and approved directly." });
     } catch (err: unknown) {
       toast.error("Failed to submit report", {
         description: (err as Error)?.message || "Server error occurred",

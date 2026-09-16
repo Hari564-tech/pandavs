@@ -44,7 +44,7 @@ export const ReportService = {
       next_steps: data.next,
       blockers: data.blockers,
       progress: data.progress,
-      status: "submitted",
+      status: "approved",
       pr_url: data.prUrl,
       attachment: data.attachment,
       taskCodes: data.taskCodes,
@@ -59,10 +59,10 @@ export const ReportService = {
         await NotificationRepository.create({
           id: `notif-${Date.now()}-${supId}`,
           userId: supId,
-          kind: "review",
-          title: "Daily report submitted for review",
+          kind: "system",
+          title: "Daily report filed",
           body: `${project?.name ?? "Project"}: ${data.hours}h logged · ${data.taskCodes.length} tasks linked.`,
-          href: "/reviews",
+          href: "/reports",
         });
       }
     }
